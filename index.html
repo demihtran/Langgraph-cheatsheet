@@ -1,0 +1,1049 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LangGraph Cheatsheet</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --ink: #172033;
+      --muted: #607086;
+      --line: #d8e1ec;
+      --card: #ffffff;
+      --code-bg: #edf6ff;
+      --code-line: #326aab;
+      --accent: #24589a;
+      --accent-soft: #eaf2ff;
+      --blue: #24589a;
+      --gold: #b7791f;
+      --green: #0d6a63;
+      --red: #be365d;
+      --shadow: 0 8px 24px rgba(23, 32, 51, .08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        linear-gradient(180deg, #ffffff 0%, var(--bg) 360px),
+        var(--bg);
+      color: var(--ink);
+      line-height: 1.42;
+    }
+    a { color: inherit; text-decoration: none; }
+    code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+
+    .sheet {
+      width: min(1320px, calc(100% - 32px));
+      margin: 26px auto 34px;
+    }
+    .hero {
+      border-radius: 14px;
+      padding: 28px 34px 24px;
+      color: #fff;
+      background: linear-gradient(115deg, #0f2f56 0%, #24589a 56%, #0d6a63 100%);
+      box-shadow: 0 16px 40px rgba(36, 88, 154, .18);
+    }
+    .hero-top {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .13);
+      border: 1px solid rgba(255, 255, 255, .25);
+      color: #f8fafc;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(30px, 5vw, 48px);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+    .subtitle {
+      margin: 8px 0 0;
+      color: rgba(255, 255, 255, .82);
+      font-size: 14px;
+      font-weight: 650;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+    .chip {
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .14);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 22px;
+    }
+    .card {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+    .card.span-2 { grid-column: span 2; }
+    .card.span-3 { grid-column: 1 / -1; }
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 50px;
+      padding: 12px 14px;
+      background: linear-gradient(90deg, #eef5ff 0%, #f5fbff 100%);
+      border-bottom: 1px solid var(--line);
+    }
+    .icon {
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      color: #fff;
+      background: #24589a;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .icon.green { background: #0d6a63; }
+    .icon.blue { background: #24589a; }
+    .icon.gold { background: #b7791f; }
+    .icon.red { background: #be365d; }
+    h2 {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.1;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .caption {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 650;
+    }
+    .body { padding: 14px; }
+    .mini {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .fact {
+      border-left: 3px solid #7da8d4;
+      padding-left: 8px;
+      min-width: 0;
+      font-size: 11px;
+      color: #27364d;
+    }
+    .fact b {
+      display: block;
+      margin-bottom: 2px;
+      color: var(--accent);
+      font-size: 9px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .fact code {
+      color: #1d4f8f;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    pre {
+      margin: 0;
+      padding: 13px 14px;
+      max-height: 365px;
+      overflow: auto;
+      border-radius: 8px;
+      border-left: 4px solid var(--code-line);
+      background: var(--code-bg);
+      color: #163963;
+      font-size: 11px;
+      line-height: 1.55;
+      white-space: pre;
+    }
+    .note {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .note p {
+      margin: 0;
+      border-radius: 8px;
+      padding: 8px 9px;
+      color: #27364d;
+      background: #f4f8fd;
+      font-size: 10.5px;
+    }
+    .note b { color: var(--accent); }
+    .note .bad b { color: var(--red); }
+    .mono-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .mono-list li {
+      border-radius: 8px;
+      background: var(--code-bg);
+      border-left: 4px solid var(--code-line);
+      padding: 9px 10px;
+      color: #27364d;
+      font-size: 11px;
+    }
+    .mono-list code { color: #1d4f8f; font-weight: 800; }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      margin-top: 20px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      background: #eaf2ff;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+    }
+    .footer a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    @media print {
+      body { background: #fff; }
+      .sheet { width: 100%; margin: 0; padding: 0; }
+      .card { break-inside: avoid; box-shadow: none; }
+      .hero { box-shadow: none; }
+    }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .card.span-2, .card.span-3 { grid-column: 1 / -1; }
+    }
+    @media (max-width: 660px) {
+      .sheet { width: min(100% - 20px, 1320px); margin-top: 10px; }
+      .hero { padding: 22px 18px; }
+      .grid, .mini, .note, .mono-list { grid-template-columns: 1fr; }
+      h1 { font-size: 32px; }
+      .footer { display: block; }
+      .footer span { display: block; margin-top: 7px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <header class="hero">
+      <div class="hero-top">
+        <div class="logo">LG</div>
+        <div>
+          <h1>LangGraph Cheatsheet</h1>
+          <p class="subtitle">Stateful agents, graphs, nodes, edges, reducers, persistence, interrupts, streaming</p>
+        </div>
+      </div>
+      <nav class="chips" aria-label="Cheatsheet sections">
+        <a class="chip" href="#overview">Overview</a>
+        <a class="chip" href="#stategraph">StateGraph</a>
+        <a class="chip" href="#state">State &amp; Reducers</a>
+        <a class="chip" href="#nodes">Nodes</a>
+        <a class="chip" href="#edges">Edges</a>
+        <a class="chip" href="#command">Command &amp; Send</a>
+        <a class="chip" href="#persistence">Persistence</a>
+        <a class="chip" href="#interrupts">Interrupts</a>
+        <a class="chip" href="#streaming">Streaming</a>
+        <a class="chip" href="#subgraphs">Subgraphs</a>
+        <a class="chip" href="#prebuilt">Prebuilt Agents</a>
+      </nav>
+    </header>
+
+    <section class="grid" aria-label="LangGraph core components">
+      <article id="overview" class="card">
+        <div class="card-head">
+          <div class="icon blue">LG</div>
+          <div>
+            <h2>LangGraph Overview</h2>
+            <div class="caption">Low-level orchestration for stateful agents</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Framework build agent/workflow bằng graph có state, control flow và persistence.</div>
+            <div class="fact"><b>Khi dùng</b> Agent nhiều bước, human-in-the-loop, long-running workflow, multi-agent.</div>
+            <div class="fact"><b>Install</b> <code>pip install -U langgraph</code></div>
+            <div class="fact"><b>Core APIs</b> Graph API, Functional API, prebuilt agents, LangGraph Platform.</div>
+          </div>
+          <pre><code>pip install -U langgraph langchain
+pip install -U langchain-openai
+
+# Main idea:
+# StateGraph defines state.
+# Nodes update state.
+# Edges decide next node.
+# Checkpointers persist execution.</code></pre>
+          <div class="note">
+            <p><b>Best:</b> dùng LangGraph khi cần state/control flow rõ hơn chain hoặc agent đơn giản.</p>
+            <p class="bad"><b>Mistake:</b> build graph phức tạp khi <code>create_agent</code> hoặc LCEL chain đã đủ.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="stategraph" class="card">
+        <div class="card-head">
+          <div class="icon green">SG</div>
+          <div>
+            <h2>StateGraph</h2>
+            <div class="caption">Main graph builder for stateful workflows</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Builder định nghĩa schema state, nodes, edges rồi compile thành runnable graph.</div>
+            <div class="fact"><b>Khi dùng</b> Workflow có shared state và nhiều bước điều phối.</div>
+            <div class="fact"><b>Import</b> <code>from langgraph.graph import StateGraph, START, END</code></div>
+            <div class="fact"><b>Methods</b> <code>add_node</code>, <code>add_edge</code>, <code>add_conditional_edges</code>, <code>compile</code></div>
+          </div>
+          <pre><code>from typing import TypedDict
+from langgraph.graph import StateGraph, START, END
+
+class State(TypedDict):
+    topic: str
+    joke: str
+
+def write_joke(state: State):
+    return {"joke": f"Short joke about {state['topic']}"}
+
+builder = StateGraph(State)
+builder.add_node("write_joke", write_joke)
+builder.add_edge(START, "write_joke")
+builder.add_edge("write_joke", END)
+
+graph = builder.compile()
+result = graph.invoke({"topic": "graphs"})</code></pre>
+          <div class="note">
+            <p><b>Best:</b> type state rõ bằng <code>TypedDict</code> hoặc Pydantic; node trả partial state.</p>
+            <p class="bad"><b>Mistake:</b> mutate state trực tiếp hoặc quên compile graph trước khi invoke.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="state" class="card">
+        <div class="card-head">
+          <div class="icon gold">ST</div>
+          <div>
+            <h2>State &amp; Reducers</h2>
+            <div class="caption">Shared data and merge behavior</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> State là data graph đọc/ghi; reducer quyết định cách merge updates.</div>
+            <div class="fact"><b>Khi dùng</b> Append messages, aggregate results, parallel branches.</div>
+            <div class="fact"><b>Import</b> <code>Annotated</code>, <code>add_messages</code>, <code>operator.add</code></div>
+            <div class="fact"><b>Default</b> Không reducer thì update overwrite key hiện tại.</div>
+          </div>
+          <pre><code>from typing import Annotated, TypedDict
+import operator
+from langgraph.graph.message import add_messages
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+    search_results: Annotated[list[str], operator.add]
+    user_id: str
+
+def add_result(state: State):
+    return {"search_results": ["doc-1"]}
+
+# messages append intelligently;
+# search_results list concatenates;
+# user_id overwrites if returned.</code></pre>
+          <div class="note">
+            <p><b>Best:</b> đặt reducer cho keys được nhiều node/branch update song song.</p>
+            <p class="bad"><b>Mistake:</b> để list bị overwrite khi muốn append, hoặc reducer không deterministic.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="nodes" class="card">
+        <div class="card-head">
+          <div class="icon blue">ND</div>
+          <div>
+            <h2>Nodes</h2>
+            <div class="caption">Work units that read state and return updates</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Node là function/runnable chạy một bước trong graph.</div>
+            <div class="fact"><b>Khi dùng</b> Model call, tool call, retrieval, validation, transform, routing prep.</div>
+            <div class="fact"><b>Signature</b> <code>node(state, config=None, runtime=None)</code></div>
+            <div class="fact"><b>Return</b> Dict partial state, <code>Command</code>, hoặc interrupt flow.</div>
+          </div>
+          <pre><code>from langchain.chat_models import init_chat_model
+
+model = init_chat_model("openai:gpt-5.5")
+
+def call_model(state: State):
+    response = model.invoke(state["messages"])
+    return {"messages": [response]}
+
+def validate(state: State):
+    if not state["messages"]:
+        return {"errors": ["missing messages"]}
+    return {}
+
+builder.add_node("model", call_model)
+builder.add_node("validate", validate)</code></pre>
+          <div class="note">
+            <p><b>Best:</b> node nhỏ, idempotent khi có thể, output đúng schema state.</p>
+            <p class="bad"><b>Mistake:</b> để side effect nguy hiểm trong node mà không có interrupt/approval.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="edges" class="card">
+        <div class="card-head">
+          <div class="icon red">ED</div>
+          <div>
+            <h2>Edges &amp; Routing</h2>
+            <div class="caption">Control flow between nodes</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Edge quyết định node tiếp theo; conditional edge dùng routing function.</div>
+            <div class="fact"><b>Khi dùng</b> Branching, tool loop, approval flow, error path.</div>
+            <div class="fact"><b>Constants</b> <code>START</code>, <code>END</code></div>
+            <div class="fact"><b>Methods</b> <code>add_edge</code>, <code>add_conditional_edges</code></div>
+          </div>
+          <pre><code>from typing import Literal
+from langgraph.graph import START, END
+
+def route(state: State) -> Literal["tools", "final"]:
+    last = state["messages"][-1]
+    return "tools" if last.tool_calls else "final"
+
+builder.add_edge(START, "model")
+builder.add_conditional_edges(
+    "model",
+    route,
+    {"tools": "tools", "final": END},
+)
+builder.add_edge("tools", "model")</code></pre>
+          <div class="note">
+            <p><b>Best:</b> route function trả label rõ, type hint bằng <code>Literal</code> để graph dễ hiểu.</p>
+            <p class="bad"><b>Mistake:</b> tạo vòng lặp không có điều kiện dừng hoặc route trả node không tồn tại.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="command" class="card">
+        <div class="card-head">
+          <div class="icon gold">CS</div>
+          <div>
+            <h2>Command &amp; Send</h2>
+            <div class="caption">Update state and control routing dynamically</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Command</b> Node vừa update state vừa quyết định <code>goto</code>.</div>
+            <div class="fact"><b>Send</b> Fan-out động cho map-reduce hoặc parallel work.</div>
+            <div class="fact"><b>Import</b> <code>from langgraph.types import Command, Send</code></div>
+            <div class="fact"><b>Khi dùng</b> Dynamic routing, parallel per-item processing, subgraph navigation.</div>
+          </div>
+          <pre><code>from typing import Literal
+from langgraph.types import Command, Send
+
+def decide(state: State) -> Command[Literal["research", "answer"]]:
+    if state.get("needs_research"):
+        return Command(update={"status": "researching"}, goto="research")
+    return Command(goto="answer")
+
+def fan_out(state: State):
+    return [
+        Send("process_doc", {"doc": doc})
+        for doc in state["docs"]
+    ]
+
+builder.add_conditional_edges("split", fan_out)
+</code></pre>
+          <div class="note">
+            <p><b>Best:</b> dùng <code>Command</code> khi update và routing gắn chặt trong cùng quyết định.</p>
+            <p class="bad"><b>Mistake:</b> lạm dụng dynamic routing làm graph khó đọc hơn conditional edges đơn giản.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="messages" class="card">
+        <div class="card-head">
+          <div class="icon green">MS</div>
+          <div>
+            <h2>MessagesState</h2>
+            <div class="caption">Convenient state schema for chat agents</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Prebuilt state có key <code>messages</code> với reducer <code>add_messages</code>.</div>
+            <div class="fact"><b>Khi dùng</b> Chatbot, tool-calling agent, conversational workflow.</div>
+            <div class="fact"><b>Import</b> <code>from langgraph.graph import MessagesState</code></div>
+            <div class="fact"><b>Extend</b> Subclass thêm keys như <code>user_id</code>, <code>summary</code>.</div>
+          </div>
+          <pre><code>from langgraph.graph import MessagesState
+
+class AgentState(MessagesState):
+    user_id: str
+    summary: str
+
+def call_model(state: AgentState):
+    response = model.invoke(state["messages"])
+    return {"messages": [response]}
+
+graph.invoke({
+    "messages": [{"role": "user", "content": "Hi"}],
+    "user_id": "u-42",
+})</code></pre>
+          <div class="note">
+            <p><b>Best:</b> dùng <code>MessagesState</code> cho chat graph để tránh tự viết reducer messages.</p>
+            <p class="bad"><b>Mistake:</b> overwrite toàn bộ messages khi muốn append response mới.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="toolnode" class="card">
+        <div class="card-head">
+          <div class="icon red">TN</div>
+          <div>
+            <h2>ToolNode</h2>
+            <div class="caption">Prebuilt node for executing tool calls</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Node chạy tool calls từ AIMessage và trả ToolMessages vào state.</div>
+            <div class="fact"><b>Khi dùng</b> ReAct/tool-calling agents thay vì tự parse tool calls.</div>
+            <div class="fact"><b>Import</b> <code>from langgraph.prebuilt import ToolNode, tools_condition</code></div>
+            <div class="fact"><b>Methods</b> Dùng như node trong graph: <code>builder.add_node("tools", ToolNode(tools))</code></div>
+          </div>
+          <pre><code>from langchain.tools import tool
+from langgraph.prebuilt import ToolNode, tools_condition
+
+@tool
+def get_weather(city: str) -> str:
+    """Get current weather."""
+    return f"{city}: 28C"
+
+tools = [get_weather]
+model_with_tools = model.bind_tools(tools)
+
+def chatbot(state: MessagesState):
+    return {"messages": [model_with_tools.invoke(state["messages"])]}
+
+builder.add_node("chatbot", chatbot)
+builder.add_node("tools", ToolNode(tools))
+builder.add_conditional_edges("chatbot", tools_condition)
+builder.add_edge("tools", "chatbot")</code></pre>
+          <div class="note">
+            <p><b>Best:</b> dùng tool schema rõ và kiểm soát side effects bằng interrupt khi cần.</p>
+            <p class="bad"><b>Mistake:</b> tự thực thi tool calls thủ công khi <code>ToolNode</code> đã xử lý chuẩn.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="persistence" class="card span-2">
+        <div class="card-head">
+          <div class="icon blue">CP</div>
+          <div>
+            <h2>Persistence &amp; Checkpointers</h2>
+            <div class="caption">Threads, checkpoints, resume, time travel</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Checkpointer lưu state snapshots theo thread để resume hoặc inspect history.</div>
+            <div class="fact"><b>Khi dùng</b> Memory, human approval, fault tolerance, long-running agents.</div>
+            <div class="fact"><b>Import</b> <code>InMemorySaver</code>, Postgres/SQLite savers cho production.</div>
+            <div class="fact"><b>Config</b> <code>{"configurable": {"thread_id": "..."}}</code></div>
+          </div>
+          <pre><code>from langgraph.checkpoint.memory import InMemorySaver
+
+checkpointer = InMemorySaver()
+graph = builder.compile(checkpointer=checkpointer)
+
+config = {
+    "configurable": {"thread_id": "conversation-42"}
+}
+
+graph.invoke(
+    {"messages": [{"role": "user", "content": "Remember me"}]},
+    config,
+)
+
+state = graph.get_state(config)
+history = list(graph.get_state_history(config))
+
+# Production: use durable checkpoint store,
+# e.g. PostgresSaver or SqliteSaver.</code></pre>
+          <div class="note">
+            <p><b>Best:</b> thread_id ổn định theo conversation; dùng durable saver trong production.</p>
+            <p class="bad"><b>Mistake:</b> dùng <code>InMemorySaver</code> cho dữ liệu thật hoặc không quản lý checkpoint growth.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="store" class="card">
+        <div class="card-head">
+          <div class="icon green">STO</div>
+          <div>
+            <h2>Stores &amp; Long-Term Memory</h2>
+            <div class="caption">Cross-thread persistence for user facts</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Store lưu dữ liệu ngoài thread, truy cập qua namespace/key.</div>
+            <div class="fact"><b>Khi dùng</b> User profile, preferences, facts cần nhớ xuyên conversations.</div>
+            <div class="fact"><b>Import</b> <code>from langgraph.store.memory import InMemoryStore</code></div>
+            <div class="fact"><b>Methods</b> <code>put</code>, <code>get</code>, <code>search</code>, <code>delete</code></div>
+          </div>
+          <pre><code>from langgraph.store.memory import InMemoryStore
+from langgraph.runtime import Runtime
+
+store = InMemoryStore()
+graph = builder.compile(store=store)
+
+def save_preference(state, runtime: Runtime):
+    user_id = runtime.context["user_id"]
+    runtime.store.put(
+        ("users", user_id),
+        "preference",
+        {"language": "vi"},
+    )
+    return {}
+
+config = {"configurable": {"thread_id": "t-1"}}
+context = {"user_id": "u-42"}
+graph.invoke(input_state, config=config, context=context)</code></pre>
+          <div class="note">
+            <p><b>Best:</b> tách short-term thread state và long-term user memory rõ ràng.</p>
+            <p class="bad"><b>Mistake:</b> lưu PII không kiểm soát hoặc dùng store thay cho checkpoint state.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="interrupts" class="card">
+        <div class="card-head">
+          <div class="icon red">INT</div>
+          <div>
+            <h2>Interrupts</h2>
+            <div class="caption">Pause graph for human input or approval</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> <code>interrupt()</code> pause execution, resume bằng <code>Command(resume=...)</code>.</div>
+            <div class="fact"><b>Khi dùng</b> Approval trước tool nguy hiểm, ask user, edit state, review output.</div>
+            <div class="fact"><b>Import</b> <code>from langgraph.types import interrupt, Command</code></div>
+            <div class="fact"><b>Yêu cầu</b> Cần checkpointer để resume graph.</div>
+          </div>
+          <pre><code>from langgraph.types import interrupt, Command
+
+def approve_payment(state: State):
+    answer = interrupt({
+        "question": "Approve payment?",
+        "amount": state["amount"],
+    })
+    if answer["approved"]:
+        return {"approved": True}
+    return {"approved": False}
+
+graph = builder.compile(checkpointer=checkpointer)
+config = {"configurable": {"thread_id": "pay-1"}}
+
+graph.invoke({"amount": 100}, config)
+graph.invoke(Command(resume={"approved": True}), config)</code></pre>
+          <div class="note">
+            <p><b>Best:</b> interrupt trước side effects, kèm payload đủ để UI hiển thị quyết định.</p>
+            <p class="bad"><b>Mistake:</b> đặt interrupt trong node không idempotent rồi resume gây chạy lại side effect.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="streaming" class="card">
+        <div class="card-head">
+          <div class="icon blue">STR</div>
+          <div>
+            <h2>Streaming</h2>
+            <div class="caption">Values, updates, messages, events, custom data</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Stream state updates, full values, LLM tokens, debug data hoặc custom events.</div>
+            <div class="fact"><b>Khi dùng</b> Chat UI, progress display, tool-call visibility, observability.</div>
+            <div class="fact"><b>Modes</b> <code>values</code>, <code>updates</code>, <code>messages</code>, <code>debug</code>, <code>custom</code></div>
+            <div class="fact"><b>Methods</b> <code>stream</code>, <code>astream</code>, <code>astream_events</code></div>
+          </div>
+          <pre><code>for chunk in graph.stream(
+    {"messages": [{"role": "user", "content": "Hi"}]},
+    stream_mode="updates",
+):
+    print(chunk)
+
+for token, metadata in graph.stream(
+    input_state,
+    stream_mode="messages",
+):
+    print(token.content, end="")
+
+async for event in graph.astream_events(input_state):
+    print(event["event"], event.get("name"))</code></pre>
+          <div class="note">
+            <p><b>Best:</b> dùng <code>updates</code> cho progress, <code>messages</code> cho token UI, events cho tracing.</p>
+            <p class="bad"><b>Mistake:</b> giả định chunk format giống nhau giữa các stream modes.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="subgraphs" class="card">
+        <div class="card-head">
+          <div class="icon gold">SUB</div>
+          <div>
+            <h2>Subgraphs</h2>
+            <div class="caption">Compose graphs inside graphs</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Một compiled graph có thể dùng như node trong graph khác.</div>
+            <div class="fact"><b>Khi dùng</b> Multi-agent, reusable workflows, team/subtask isolation.</div>
+            <div class="fact"><b>Shared State</b> Parent và subgraph có thể share key hoặc transform IO.</div>
+            <div class="fact"><b>Methods</b> Compile subgraph rồi <code>add_node("name", subgraph)</code>.</div>
+          </div>
+          <pre><code>class SubState(TypedDict):
+    question: str
+    answer: str
+
+sub = StateGraph(SubState)
+sub.add_node("answer", lambda s: {"answer": "42"})
+sub.add_edge(START, "answer")
+sub.add_edge("answer", END)
+subgraph = sub.compile()
+
+class ParentState(TypedDict):
+    question: str
+    answer: str
+    final: str
+
+parent = StateGraph(ParentState)
+parent.add_node("qa", subgraph)
+parent.add_node("finalize", lambda s: {"final": s["answer"]})
+parent.add_edge(START, "qa")
+parent.add_edge("qa", "finalize")
+parent.add_edge("finalize", END)
+</code></pre>
+          <div class="note">
+            <p><b>Best:</b> dùng subgraph để đóng gói workflow có ownership/schema rõ.</p>
+            <p class="bad"><b>Mistake:</b> share quá nhiều state keys khiến parent/subgraph coupling cao.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="functional" class="card">
+        <div class="card-head">
+          <div class="icon green">FN</div>
+          <div>
+            <h2>Functional API</h2>
+            <div class="caption">Workflow and task decorators</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Viết workflow bằng decorators thay vì khai báo graph thủ công.</div>
+            <div class="fact"><b>Khi dùng</b> Flow giống code thường nhưng vẫn cần persistence/streaming.</div>
+            <div class="fact"><b>Import</b> <code>from langgraph.func import entrypoint, task</code></div>
+            <div class="fact"><b>Methods</b> Task gọi bằng <code>.result()</code>; workflow invoke/stream như graph.</div>
+          </div>
+          <pre><code>from langgraph.func import entrypoint, task
+from langgraph.checkpoint.memory import InMemorySaver
+
+@task
+def research(topic: str) -> str:
+    return f"facts about {topic}"
+
+@task
+def write_answer(facts: str) -> str:
+    return f"Answer: {facts}"
+
+@entrypoint(checkpointer=InMemorySaver())
+def workflow(topic: str) -> str:
+    facts = research(topic).result()
+    return write_answer(facts).result()
+
+workflow.invoke("LangGraph")</code></pre>
+          <div class="note">
+            <p><b>Best:</b> dùng Functional API cho workflow tuyến tính/imperative dễ đọc.</p>
+            <p class="bad"><b>Mistake:</b> dùng khi cần graph topology phức tạp, nhiều route quan sát trực quan.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="prebuilt" class="card span-2">
+        <div class="card-head">
+          <div class="icon red">AG</div>
+          <div>
+            <h2>Prebuilt Agents</h2>
+            <div class="caption">create_react_agent and production-ready agent loops</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Prebuilt agent graph cho model + tools + state + checkpointer.</div>
+            <div class="fact"><b>Khi dùng</b> Muốn ReAct/tool-calling nhanh mà vẫn có LangGraph state/persistence.</div>
+            <div class="fact"><b>Import</b> <code>from langgraph.prebuilt import create_react_agent</code></div>
+            <div class="fact"><b>Methods</b> <code>invoke</code>, <code>stream</code>, <code>get_state</code> nếu compile với checkpointer.</div>
+          </div>
+          <pre><code>from langgraph.prebuilt import create_react_agent
+from langchain.chat_models import init_chat_model
+from langchain.tools import tool
+
+@tool
+def search(query: str) -> str:
+    """Search trusted docs."""
+    return "LangGraph supports durable state."
+
+model = init_chat_model("openai:gpt-5.5")
+agent = create_react_agent(
+    model=model,
+    tools=[search],
+    prompt="You are a concise assistant.",
+    checkpointer=checkpointer,
+)
+
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": "What is LangGraph?"}]},
+    {"configurable": {"thread_id": "agent-1"}},
+)</code></pre>
+          <div class="note">
+            <p><b>Best:</b> bắt đầu với prebuilt agent, rồi custom StateGraph khi cần control flow riêng.</p>
+            <p class="bad"><b>Mistake:</b> tự dựng ReAct loop từ đầu khi prebuilt agent đã đáp ứng.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="memory" class="card">
+        <div class="card-head">
+          <div class="icon blue">MEM</div>
+          <div>
+            <h2>Memory Patterns</h2>
+            <div class="caption">Short-term, long-term, summarization</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Short-term</b> Checkpointer + thread state giữ conversation history.</div>
+            <div class="fact"><b>Long-term</b> Store lưu facts/preferences xuyên threads.</div>
+            <div class="fact"><b>Context</b> Runtime context truyền user_id, tenant_id, request scope.</div>
+            <div class="fact"><b>Manage</b> Trim/summarize messages để tránh vượt context.</div>
+          </div>
+          <pre><code>from langgraph.graph import MessagesState
+
+class ChatState(MessagesState):
+    summary: str
+
+def summarize_if_long(state: ChatState):
+    messages = state["messages"]
+    if len(messages) < 12:
+        return {}
+    summary = model.invoke([
+        {"role": "system", "content": "Summarize chat."},
+        *messages,
+    ])
+    return {
+        "summary": summary.content,
+        "messages": messages[-6:],
+    }</code></pre>
+          <div class="note">
+            <p><b>Best:</b> phân biệt memory phục vụ context và memory lưu tri thức user.</p>
+            <p class="bad"><b>Mistake:</b> đưa toàn bộ history vào prompt vô hạn hoặc lưu memory chưa được xác nhận.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="time-travel" class="card">
+        <div class="card-head">
+          <div class="icon gold">TT</div>
+          <div>
+            <h2>Time Travel &amp; State Editing</h2>
+            <div class="caption">Inspect, fork, replay, update graph state</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Dùng checkpoints để xem history, resume từ checkpoint, fork execution.</div>
+            <div class="fact"><b>Khi dùng</b> Debug agent, fix human input, replay workflow, audit path.</div>
+            <div class="fact"><b>Methods</b> <code>get_state</code>, <code>get_state_history</code>, <code>update_state</code></div>
+            <div class="fact"><b>Yêu cầu</b> Graph compile với checkpointer.</div>
+          </div>
+          <pre><code>config = {"configurable": {"thread_id": "debug-1"}}
+
+graph.invoke(input_state, config)
+
+current = graph.get_state(config)
+for checkpoint in graph.get_state_history(config):
+    print(checkpoint.next, checkpoint.values)
+
+graph.update_state(
+    config,
+    {"approved": True},
+    as_node="human_review",
+)
+
+graph.invoke(None, config)</code></pre>
+          <div class="note">
+            <p><b>Best:</b> dùng state history để debug routing và tool outputs thay vì chỉ print.</p>
+            <p class="bad"><b>Mistake:</b> update state sai node/context làm replay khó hiểu.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="deployment" class="card">
+        <div class="card-head">
+          <div class="icon green">DEP</div>
+          <div>
+            <h2>Deployment &amp; Platform</h2>
+            <div class="caption">LangGraph Platform, Server, Studio, CLI</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Runtime/platform cho deploy agents lâu dài với threads, assistants, runs.</div>
+            <div class="fact"><b>Khi dùng</b> Production APIs, background runs, persistence, deployment management.</div>
+            <div class="fact"><b>Config</b> <code>langgraph.json</code> khai báo graph entrypoints.</div>
+            <div class="fact"><b>Tools</b> LangGraph Server, Studio, CLI, SDKs.</div>
+          </div>
+          <pre><code>{
+  "dependencies": ["."],
+  "graphs": {
+    "agent": "./src/agent.py:graph"
+  },
+  "env": ".env"
+}
+
+# Local dev server
+langgraph dev
+
+# Client concepts:
+# assistants, threads, runs, cron jobs</code></pre>
+          <div class="note">
+            <p><b>Best:</b> tách graph construction khỏi app server; cấu hình secrets qua env.</p>
+            <p class="bad"><b>Mistake:</b> deploy graph không có checkpoint/store production hoặc thiếu tracing.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="observability" class="card">
+        <div class="card-head">
+          <div class="icon blue">OBS</div>
+          <div>
+            <h2>Observability</h2>
+            <div class="caption">LangSmith tracing, debug, events</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Khái niệm</b> Trace node execution, model calls, tools, state transitions, latency.</div>
+            <div class="fact"><b>Khi dùng</b> Debug loops, evaluate agent quality, monitor production failures.</div>
+            <div class="fact"><b>Env</b> <code>LANGSMITH_TRACING=true</code>, <code>LANGSMITH_API_KEY</code></div>
+            <div class="fact"><b>Streams</b> <code>debug</code>, <code>astream_events</code>, LangSmith traces.</div>
+          </div>
+          <pre><code>import os
+
+os.environ["LANGSMITH_TRACING"] = "true"
+os.environ["LANGSMITH_API_KEY"] = "lsv2_..."
+os.environ["LANGSMITH_PROJECT"] = "langgraph-demo"
+
+for chunk in graph.stream(
+    input_state,
+    stream_mode="debug",
+):
+    print(chunk)</code></pre>
+          <div class="note">
+            <p><b>Best:</b> tag runs theo workflow/user segment và scrub PII trước tracing.</p>
+            <p class="bad"><b>Mistake:</b> debug graph bằng print rời rạc, không xem checkpoint/history.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="patterns" class="card span-3">
+        <div class="card-head">
+          <div class="icon green">MAP</div>
+          <div>
+            <h2>Quick Decision Map</h2>
+            <div class="caption">Pick the right LangGraph component</div>
+          </div>
+        </div>
+        <div class="body">
+          <ul class="mono-list">
+            <li><code>StateGraph</code><br>Workflow nhiều node, shared state, routing rõ.</li>
+            <li><code>MessagesState</code><br>Chat/tool-calling graph có message history.</li>
+            <li><code>Reducer</code><br>Nhiều node/branch update cùng key hoặc cần append.</li>
+            <li><code>Conditional edges</code><br>Routing dựa trên state sau node.</li>
+            <li><code>Command</code><br>Node vừa update state vừa chọn node kế tiếp.</li>
+            <li><code>Send</code><br>Fan-out động, map-reduce, parallel per item.</li>
+            <li><code>Checkpointer</code><br>Resume, memory theo thread, interrupts, time travel.</li>
+            <li><code>Store</code><br>Long-term memory xuyên nhiều threads.</li>
+            <li><code>Interrupt</code><br>Human approval/input trước bước rủi ro.</li>
+            <li><code>ToolNode</code><br>Execute tool calls chuẩn trong agent loop.</li>
+            <li><code>Functional API</code><br>Workflow imperative, tuyến tính, ít topology phức tạp.</li>
+            <li><code>Subgraph</code><br>Đóng gói workflow/team/agent con có schema riêng.</li>
+          </ul>
+        </div>
+      </article>
+    </section>
+
+    <footer class="footer">
+      <div>
+        LangGraph Cheatsheet - Core Components Reference.
+        Tổng hợp từ tài liệu chính thức LangGraph, đối chiếu ngày 2026-06-30.
+      </div>
+      <span>
+        <a href="https://docs.langchain.com/oss/python/langgraph/overview">overview</a>
+        · <a href="https://docs.langchain.com/oss/python/langgraph/graph-api">graph api</a>
+        · <a href="https://docs.langchain.com/oss/python/langgraph/functional-api">functional api</a>
+        · <a href="https://docs.langchain.com/oss/python/langgraph/persistence">persistence</a>
+        · <a href="https://docs.langchain.com/oss/python/langgraph/streaming">streaming</a>
+        · <a href="https://reference.langchain.com/python/langgraph/">reference</a>
+      </span>
+    </footer>
+  </main>
+</body>
+</html>
