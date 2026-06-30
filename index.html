@@ -192,24 +192,24 @@
 
     pre[class*="language-"],
     code[class*="language-"] {
-      background: #f3f8ff;
+      background: #fffaff;
       color: #172033;
       text-shadow: none;
       font-size: 11px;
     }
     pre[class*="language-"] {
-      border-left-color: #326aab;
-      box-shadow: inset 0 0 0 1px rgba(50, 106, 171, .16);
+      border-left-color: #7c3aed;
+      box-shadow: inset 0 0 0 1px rgba(124, 58, 237, .18), 0 8px 18px rgba(36, 88, 154, .08);
     }
-    .token.comment, .token.prolog, .token.doctype, .token.cdata { color: #71839a; font-style: italic; }
-    .token.keyword { color: #1d4f8f; font-weight: 800; }
-    .token.string, .token.char { color: #0d6a63; }
-    .token.function { color: #24589a; }
-    .token.class-name, .token.constant { color: #9a5b13; font-weight: 750; }
-    .token.number, .token.boolean { color: #be365d; }
-    .token.operator, .token.punctuation { color: #4b5d73; }
-    .token.builtin, .token.decorator { color: #7a4aa0; }
-    .token.attr-name, .token.property { color: #b35c2e; }
+    .token.comment, .token.prolog, .token.doctype, .token.cdata { color: #69758a; font-style: italic; }
+    .token.keyword { color: #7c3aed; font-weight: 900; }
+    .token.string, .token.char { color: #047857; font-weight: 650; }
+    .token.function { color: #0369a1; font-weight: 800; }
+    .token.class-name, .token.constant { color: #b45309; font-weight: 850; }
+    .token.number, .token.boolean { color: #dc2626; font-weight: 800; }
+    .token.operator, .token.punctuation { color: #334155; }
+    .token.builtin, .token.decorator { color: #be185d; font-weight: 800; }
+    .token.attr-name, .token.property { color: #c2410c; font-weight: 750; }
 
     .note {
       display: grid;
@@ -1144,6 +1144,97 @@ for chunk in graph.stream(
             <li><code>Store</code><br><code>put</code>, <code>get</code>, <code>search</code>, <code>delete</code> for long-term memory outside a single thread.</li>
             <li><code>@entrypoint / @task</code><br>Functional API for imperative workflows that still need persistence, streaming, and retries.</li>
             <li><code>LangGraph Platform</code><br><code>langgraph.json</code>, assistants, threads, runs, cron/background jobs, Studio, Server, and SDK clients.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article id="real-life-langgraph" class="card span-3">
+        <div class="card-head">
+          <div class="icon blue">PRO</div>
+          <div>
+            <h2>Real-Life LangGraph Patterns</h2>
+            <div class="caption">Production orchestration patterns that show up outside toy demos</div>
+          </div>
+        </div>
+        <div class="body">
+          <ul class="mono-list">
+            <li><code>Support agent</code><br>Retrieve docs -> ask clarification -> call diagnostic tools -> create ticket only after confirmation.</li>
+            <li><code>Research workflow</code><br>Plan -> fan out searches with <code>Send</code> -> summarize each source -> synthesize -> cite -> review.</li>
+            <li><code>Data pipeline</code><br>Extract -> validate -> route bad records -> human repair -> write approved records -> audit state.</li>
+            <li><code>Multi-agent team</code><br>Supervisor graph routes to specialist subgraphs for research, coding, review, or customer support.</li>
+            <li><code>Approval workflow</code><br>Use <code>interrupt()</code> before irreversible tools: payment, delete, email, deploy, account changes.</li>
+            <li><code>Long-running job</code><br>Checkpoint every step; resume after failures; inspect state history for audit and debugging.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article id="failure-recovery" class="card span-2">
+        <div class="card-head">
+          <div class="icon red">OPS</div>
+          <div>
+            <h2>Failure Recovery &amp; Reliability</h2>
+            <div class="caption">Design graphs assuming nodes, tools, and users will fail</div>
+          </div>
+        </div>
+        <div class="body">
+          <pre class="language-python"><code class="language-python"># Reliability checklist for every node
+def node(state, config):
+    # 1. Read only the state keys you need.
+    # 2. Validate inputs before side effects.
+    # 3. Make external writes idempotent.
+    # 4. Return partial state updates only.
+    # 5. Store enough metadata for replay/debug.
+    return {"status": "validated"}
+
+# Durable execution needs:
+# - stable thread_id
+# - production checkpointer
+# - retry strategy for transient errors
+# - interrupt before risky writes
+# - state history inspection in support tools</code></pre>
+          <div class="note">
+            <p><b>Best:</b> Keep nodes small, deterministic where possible, and safe to re-run after checkpoint resume.</p>
+            <p class="bad"><b>Mistake:</b> Put non-idempotent external writes before an interrupt or without a stable operation id.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="state-design" class="card">
+        <div class="card-head">
+          <div class="icon gold">STATE</div>
+          <div>
+            <h2>State Design Best Practices</h2>
+            <div class="caption">Most graph bugs start with unclear state</div>
+          </div>
+        </div>
+        <div class="body">
+          <ul class="mono-list">
+            <li><code>Schema</code><br>Use <code>TypedDict</code> or Pydantic; document which node owns each key.</li>
+            <li><code>Reducers</code><br>Use reducers for append/aggregate keys; otherwise updates overwrite values.</li>
+            <li><code>Messages</code><br>Use <code>MessagesState</code> for chat/tool loops; summarize or trim long histories.</li>
+            <li><code>Context</code><br>Runtime user id, tenant, locale, and request metadata should be context/config, not graph state.</li>
+            <li><code>Audit</code><br>Store decisions, tool ids, source ids, approval payloads, and failure reasons in state.</li>
+            <li><code>Boundaries</code><br>Use subgraphs when teams, schemas, or responsibilities should be isolated.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article id="deployment-playbook" class="card span-3">
+        <div class="card-head">
+          <div class="icon green">DEP</div>
+          <div>
+            <h2>Deployment Playbook</h2>
+            <div class="caption">Moving from notebook graph to maintained service</div>
+          </div>
+        </div>
+        <div class="body">
+          <ul class="mono-list">
+            <li><code>Graph factory</code><br>Build graphs in a function; inject model, tools, checkpointer, store, and runtime settings.</li>
+            <li><code>Persistence</code><br>Use durable checkpointers for production. In-memory savers are only for demos and tests.</li>
+            <li><code>Streaming UX</code><br>Use <code>updates</code> for progress, <code>messages</code> for token UI, <code>debug</code> for internal tooling.</li>
+            <li><code>Observability</code><br>Trace node names, state transitions, tool calls, interrupt payloads, latency, retries, and costs.</li>
+            <li><code>Testing</code><br>Unit-test routing functions and nodes; integration-test full graph paths with fixed inputs.</li>
+            <li><code>Versioning</code><br>Version graph topology, prompts, tools, state schema, and migration logic for old checkpoints.</li>
           </ul>
         </div>
       </article>
