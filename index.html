@@ -1131,6 +1131,33 @@ for chunk in graph.stream(
           </div>
         </div>
         <div class="body">
+          <pre class="language-python"><code class="language-python">from typing import Annotated, Literal, TypedDict
+import operator
+from langgraph.types import Command, Send, interrupt
+
+class ResearchState(TypedDict):
+    question: str
+    queries: list[str]
+    findings: Annotated[list[str], operator.add]
+    approved: bool
+
+def plan(state: ResearchState):
+    return {
+        "queries": [
+            f"{state['question']} docs",
+            f"{state['question']} changelog",
+        ]
+    }
+
+def fan_out(state: ResearchState):
+    return [Send("search", {"query": q}) for q in state["queries"]]
+
+def approve(state: ResearchState) -> Command[Literal["publish", "revise"]]:
+    decision = interrupt({"draft": state["findings"]})
+    return Command(
+        update={"approved": decision == "approve"},
+        goto="publish" if decision == "approve" else "revise",
+    )</code></pre>
           <ul class="mono-list">
             <li><code>StateGraph(State)</code><br><code>add_node</code>, <code>add_edge</code>, <code>add_conditional_edges</code>, <code>set_entry_point</code>, <code>set_finish_point</code>, <code>compile</code>.</li>
             <li><code>CompiledStateGraph</code><br><code>invoke</code>, <code>ainvoke</code>, <code>stream</code>, <code>astream</code>, <code>get_state</code>, <code>get_state_history</code>, <code>update_state</code>.</li>
@@ -1157,6 +1184,39 @@ for chunk in graph.stream(
           </div>
         </div>
         <div class="body">
+          <pre class="language-python"><code class="language-python">from typing import Literal
+from langgraph.graph import StateGraph, START, END
+
+class TicketState(TypedDict):
+    request: str
+    route: Literal["docs", "diagnostics", "ticket", "done"]
+    evidence: list[str]
+
+def supervisor(state: TicketState):
+    if "error code" in state["request"].lower():
+        return {"route": "diagnostics"}
+    if "how do i" in state["request"].lower():
+        return {"route": "docs"}
+    return {"route": "ticket"}
+
+def route(state: TicketState):
+    return state["route"]
+
+builder = StateGraph(TicketState)
+builder.add_node("supervisor", supervisor)
+builder.add_node("docs", docs_agent)
+builder.add_node("diagnostics", diagnostics_agent)
+builder.add_node("ticket", ticket_agent)
+builder.add_edge(START, "supervisor")
+builder.add_conditional_edges(
+    "supervisor",
+    route,
+    {"docs": "docs", "diagnostics": "diagnostics", "ticket": "ticket"},
+)
+builder.add_edge("docs", END)
+builder.add_edge("diagnostics", END)
+builder.add_edge("ticket", END)
+graph = builder.compile(checkpointer=checkpointer)</code></pre>
           <ul class="mono-list">
             <li><code>Support agent</code><br>Retrieve docs -> ask clarification -> call diagnostic tools -> create ticket only after confirmation.</li>
             <li><code>Research workflow</code><br>Plan -> fan out searches with <code>Send</code> -> summarize each source -> synthesize -> cite -> review.</li>
@@ -1208,6 +1268,26 @@ def node(state, config):
           </div>
         </div>
         <div class="body">
+          <pre class="language-python"><code class="language-python">from typing import Annotated, TypedDict
+import operator
+from langgraph.graph import MessagesState
+from langgraph.graph.message import add_messages
+
+class ProductionAgentState(TypedDict):
+    messages: Annotated[list, add_messages]
+    user_id: str
+    tenant_id: str
+    plan: list[str]
+    retrieved_source_ids: Annotated[list[str], operator.add]
+    tool_results: Annotated[list[dict], operator.add]
+    approval_required: bool
+    final_answer: str
+
+# Ownership rule:
+# - planner owns plan
+# - retriever owns retrieved_source_ids
+# - tools own tool_results
+# - responder owns final_answer</code></pre>
           <ul class="mono-list">
             <li><code>Schema</code><br>Use <code>TypedDict</code> or Pydantic; document which node owns each key.</li>
             <li><code>Reducers</code><br>Use reducers for append/aggregate keys; otherwise updates overwrite values.</li>
@@ -1228,6 +1308,30 @@ def node(state, config):
           </div>
         </div>
         <div class="body">
+          <pre class="language-python"><code class="language-python"># src/agent.py
+from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.store.postgres import PostgresStore
+
+def build_graph(model, tools, db_uri: str):
+    checkpointer = PostgresSaver.from_conn_string(db_uri)
+    store = PostgresStore.from_conn_string(db_uri)
+
+    builder = StateGraph(ProductionAgentState)
+    builder.add_node("agent", call_model)
+    builder.add_node("tools", ToolNode(tools))
+    builder.add_edge(START, "agent")
+    builder.add_conditional_edges("agent", route_tools)
+    builder.add_edge("tools", "agent")
+    return builder.compile(checkpointer=checkpointer, store=store)
+
+graph = build_graph(model, tools, db_uri=os.environ["DATABASE_URL"])
+
+# langgraph.json
+{
+  "dependencies": ["."],
+  "graphs": {"support_agent": "./src/agent.py:graph"},
+  "env": ".env"
+}</code></pre>
           <ul class="mono-list">
             <li><code>Graph factory</code><br>Build graphs in a function; inject model, tools, checkpointer, store, and runtime settings.</li>
             <li><code>Persistence</code><br>Use durable checkpointers for production. In-memory savers are only for demos and tests.</li>
