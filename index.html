@@ -714,7 +714,8 @@ builder.add_edge("tools", "chatbot")</code></pre>
             <div class="fact"><b>Import</b> <code>InMemorySaver</code>, Postgres/SQLite savers for production.</div>
             <div class="fact"><b>Config</b> <code>{"configurable": {"thread_id": "..."}}</code></div>
           </div>
-          <pre class="language-python"><code class="language-python">from langgraph.checkpoint.memory import InMemorySaver
+          <pre class="language-python"><code class="language-python"># Demo/test only: process memory disappears on restart.
+from langgraph.checkpoint.memory import InMemorySaver
 
 checkpointer = InMemorySaver()
 graph = builder.compile(checkpointer=checkpointer)
@@ -731,11 +732,58 @@ graph.invoke(
 state = graph.get_state(config)
 history = list(graph.get_state_history(config))
 
-# Production: use durable checkpoint store,
-# e.g. PostgresSaver or SqliteSaver.</code></pre>
+# Production must use a durable checkpoint store.</code></pre>
+          <pre class="language-python"><code class="language-python"># Production: Postgres checkpointer.
+# pip install langgraph-checkpoint-postgres
+from langgraph.checkpoint.postgres import PostgresSaver
+
+DB_URI = "postgresql://postgres:postgres@localhost:5432/ai?sslmode=disable"
+
+with PostgresSaver.from_conn_string(DB_URI) as checkpointer:
+    checkpointer.setup()  # run once during migration/bootstrap
+
+    graph = builder.compile(checkpointer=checkpointer)
+    config = {"configurable": {"thread_id": "support:ticket-8842"}}
+
+    graph.invoke({"messages": [{"role": "user", "content": "Continue"}]}, config)
+    snapshot = graph.get_state(config)
+    checkpoints = list(graph.get_state_history(config))</code></pre>
+          <pre class="language-python"><code class="language-python"># Async service: AsyncPostgresSaver + async graph runtime.
+# pip install langgraph-checkpoint-postgres
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
+async def build_async_graph():
+    async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:
+        await checkpointer.setup()
+        graph = builder.compile(checkpointer=checkpointer)
+
+        config = {"configurable": {"thread_id": "chat:u-42"}}
+        result = await graph.ainvoke(
+            {"messages": [{"role": "user", "content": "Draft reply"}]},
+            config=config,
+        )
+
+        async for update in graph.astream(
+            {"messages": [{"role": "user", "content": "Revise it"}]},
+            config=config,
+            stream_mode="updates",
+        ):
+            print(update)
+
+        return result</code></pre>
+          <pre class="language-python"><code class="language-python"># Local durable development: SQLite checkpointer.
+# pip install langgraph-checkpoint-sqlite
+import sqlite3
+from langgraph.checkpoint.sqlite import SqliteSaver
+
+conn = sqlite3.connect("langgraph-checkpoints.sqlite", check_same_thread=False)
+checkpointer = SqliteSaver(conn)
+
+graph = builder.compile(checkpointer=checkpointer)
+graph.invoke(input_state, {"configurable": {"thread_id": "local-debug-1"}})</code></pre>
           <div class="note">
-            <p><b>Best:</b> thread_id stable by conversation; use durable saver in production.</p>
-            <p class="bad"><b>Mistake:</b> use <code>InMemorySaver</code> for real production data or not managing checkpoint growth.</p>
+            <p><b>Best:</b> Keep <code>thread_id</code> stable by conversation, run Postgres migrations deliberately, and use async savers in async servers.</p>
+            <p class="bad"><b>Mistake:</b> use <code>InMemorySaver</code> for real production data, forget <code>setup()</code>, or mix random thread IDs with resumable workflows.</p>
           </div>
         </div>
       </article>
@@ -773,9 +821,45 @@ def save_preference(state, runtime: Runtime):
 config = {"configurable": {"thread_id": "t-1"}}
 context = {"user_id": "u-42"}
 graph.invoke(input_state, config=config, context=context)</code></pre>
+          <pre class="language-python"><code class="language-python"># Production long-term memory: durable SQL store.
+# pip install langgraph-checkpoint-postgres
+from langgraph.store.postgres import PostgresStore
+from langgraph.checkpoint.postgres import PostgresSaver
+
+with (
+    PostgresSaver.from_conn_string(DB_URI) as checkpointer,
+    PostgresStore.from_conn_string(DB_URI) as store,
+):
+    checkpointer.setup()
+    store.setup()
+    graph = builder.compile(store=store, checkpointer=checkpointer)
+
+    # Namespaces prevent tenants/users from reading each other.
+    store.put(
+        ("tenant", "acme", "user", "u-42", "profile"),
+        "preferences",
+        {"tone": "concise", "timezone": "Asia/Ho_Chi_Minh"},
+    )
+
+    profile = store.get(
+        ("tenant", "acme", "user", "u-42", "profile"),
+        "preferences",
+    )</code></pre>
+          <pre class="language-python"><code class="language-python">def load_user_memory(state, runtime: Runtime):
+    namespace = (
+        "tenant",
+        runtime.context["tenant_id"],
+        "user",
+        runtime.context["user_id"],
+        "profile",
+    )
+    item = runtime.store.get(namespace, "preferences")
+    if item is None:
+        return {"user_memory": {}}
+    return {"user_memory": item.value}</code></pre>
           <div class="note">
-            <p><b>Best:</b> Separate short-term thread state from long-term user memory.</p>
-            <p class="bad"><b>Mistake:</b> Store uncontrolled PII or use Store as a replacement for checkpoint state.</p>
+            <p><b>Best:</b> Use checkpointers for thread state and Store for cross-thread user facts; namespace by tenant/user/product.</p>
+            <p class="bad"><b>Mistake:</b> Store uncontrolled PII, use Store as checkpoint replacement, or skip tenant isolation in SQL namespaces.</p>
           </div>
         </div>
       </article>
@@ -811,9 +895,80 @@ config = {"configurable": {"thread_id": "pay-1"}}
 
 graph.invoke({"amount": 100}, config)
 graph.invoke(Command(resume={"approved": True}), config)</code></pre>
+          <pre class="language-python"><code class="language-python"># Real workflow: interrupt before the irreversible side effect.
+from typing import TypedDict
+from langgraph.graph import StateGraph, START, END
+from langgraph.types import Command, interrupt
+
+class PaymentState(TypedDict):
+    user_id: str
+    amount_cents: int
+    payee_id: str
+    approved: bool
+    payment_id: str | None
+
+def request_approval(state: PaymentState):
+    decision = interrupt({
+        "kind": "payment_approval",
+        "user_id": state["user_id"],
+        "amount_cents": state["amount_cents"],
+        "payee_id": state["payee_id"],
+    })
+    return {"approved": decision["approved"]}
+
+def charge_card(state: PaymentState):
+    if not state["approved"]:
+        return {"payment_id": None}
+
+    # Use an idempotency key because nodes can be retried or resumed.
+    payment_id = payments.charge(
+        user_id=state["user_id"],
+        amount_cents=state["amount_cents"],
+        payee_id=state["payee_id"],
+        idempotency_key=f"{state['user_id']}:{state['payee_id']}",
+    )
+    return {"payment_id": payment_id}
+
+builder = StateGraph(PaymentState)
+builder.add_node("request_approval", request_approval)
+builder.add_node("charge_card", charge_card)
+builder.add_edge(START, "request_approval")
+builder.add_edge("request_approval", "charge_card")
+builder.add_edge("charge_card", END)
+
+graph = builder.compile(checkpointer=checkpointer)
+config = {"configurable": {"thread_id": "payment:u-42:2026-06-30"}}
+
+first = graph.invoke({
+    "user_id": "u-42",
+    "amount_cents": 4500,
+    "payee_id": "vendor-9",
+    "approved": False,
+    "payment_id": None,
+}, config)
+
+# UI renders first["__interrupt__"], human clicks approve.
+final = graph.invoke(Command(resume={"approved": True}), config)</code></pre>
+          <pre class="language-python"><code class="language-python"># Human edits state before resume.
+config = {"configurable": {"thread_id": "refund-123"}}
+graph.invoke(initial_state, config)
+
+snapshot = graph.get_state(config)
+graph.update_state(
+    config,
+    {"amount_cents": 2500, "audit_note": "Reviewer reduced refund."},
+    as_node="request_approval",
+)
+graph.invoke(Command(resume={"approved": True}), config)</code></pre>
+          <pre class="language-python"><code class="language-python"># Async resume endpoint.
+async def approve_payment(thread_id: str, approved: bool):
+    return await graph.ainvoke(
+        Command(resume={"approved": approved}),
+        config={"configurable": {"thread_id": thread_id}},
+    )</code></pre>
           <div class="note">
             <p><b>Best:</b> Interrupt before side effects and include enough payload for the UI to show the decision.</p>
-            <p class="bad"><b>Mistake:</b> Place interrupts inside non-idempotent nodes and then trigger side effects again on resume.</p>
+            <p class="bad"><b>Mistake:</b> Charge/send/delete before the interrupt, or omit an idempotency key for retried/resumed nodes.</p>
           </div>
         </div>
       </article>
@@ -847,8 +1002,34 @@ for token, metadata in graph.stream(
 
 async for event in graph.astream_events(input_state):
     print(event["event"], event.get("name"))</code></pre>
+          <pre class="language-python"><code class="language-python"># Async UI stream: separate node updates from LLM tokens.
+async def stream_graph(thread_id: str, user_text: str):
+    config = {"configurable": {"thread_id": thread_id}}
+    async for mode, chunk in graph.astream(
+        {"messages": [{"role": "user", "content": user_text}]},
+        config=config,
+        stream_mode=["updates", "messages"],
+    ):
+        if mode == "updates":
+            yield {"type": "node_update", "value": chunk}
+        elif mode == "messages":
+            token, metadata = chunk
+            if token.content:
+                yield {
+                    "type": "token",
+                    "node": metadata.get("langgraph_node"),
+                    "value": token.content,
+                }</code></pre>
+          <pre class="language-python"><code class="language-python"># Durable streaming: balance latency vs checkpoint write guarantees.
+async for chunk in graph.astream(
+    input_state,
+    config={"configurable": {"thread_id": "ops-1"}},
+    stream_mode="updates",
+    durability="async",  # "sync" for strongest persistence before next step
+):
+    print(chunk)</code></pre>
           <div class="note">
-            <p><b>Best:</b> use <code>updates</code> for progress, <code>messages</code> for token UI, events for tracing.</p>
+            <p><b>Best:</b> use <code>updates</code> for progress, <code>messages</code> for token UI, <code>custom</code> for domain events, and events for tracing.</p>
             <p class="bad"><b>Mistake:</b> Assume chunk formats are identical across stream modes.</p>
           </div>
         </div>
