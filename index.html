@@ -14,8 +14,8 @@
       --card: #ffffff;
       --code-bg: #edf6ff;
       --code-line: #326aab;
-      --accent: #24589a;
-      --accent-soft: #eaf2ff;
+      --accent: #6d3bbd;
+      --accent-soft: #f1eaff;
       --blue: #24589a;
       --gold: #b7791f;
       --green: #0d6a63;
@@ -45,8 +45,8 @@
       border-radius: 14px;
       padding: 28px 34px 24px;
       color: #fff;
-      background: linear-gradient(115deg, #0f2f56 0%, #24589a 56%, #0d6a63 100%);
-      box-shadow: 0 16px 40px rgba(36, 88, 154, .18);
+      background: linear-gradient(115deg, #2b174f 0%, #6d3bbd 58%, #24589a 100%);
+      box-shadow: 0 16px 40px rgba(109, 59, 189, .20);
     }
     .hero-top {
       display: flex;
@@ -115,7 +115,7 @@
       gap: 10px;
       min-height: 50px;
       padding: 12px 14px;
-      background: linear-gradient(90deg, #eef5ff 0%, #f5fbff 100%);
+      background: linear-gradient(90deg, #f1eaff 0%, #fbf8ff 100%);
       border-bottom: 1px solid var(--line);
     }
     .icon {
@@ -126,13 +126,13 @@
       height: 28px;
       border-radius: 7px;
       color: #fff;
-      background: #24589a;
+      background: #6d3bbd;
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
       font-size: 12px;
       font-weight: 900;
     }
-    .icon.green { background: #0d6a63; }
-    .icon.blue { background: #24589a; }
+    .icon.green { background: #4f46e5; }
+    .icon.blue { background: #6d3bbd; }
     .icon.gold { background: #b7791f; }
     .icon.red { background: #be365d; }
     h2 {
@@ -251,7 +251,7 @@
       margin-top: 20px;
       padding: 14px 18px;
       border-radius: 10px;
-      background: #eaf2ff;
+      background: #f1eaff;
       color: var(--muted);
       font-size: 11px;
       font-weight: 650;
@@ -305,6 +305,8 @@
         <a class="chip" href="#streaming">Streaming</a>
         <a class="chip" href="#subgraphs">Subgraphs</a>
         <a class="chip" href="#prebuilt">Prebuilt Agents</a>
+        <a class="chip" href="#schemas-private-state">Schemas</a>
+        <a class="chip" href="#node-control">Node Control</a>
       </nav>
     </header>
 
@@ -1343,6 +1345,213 @@ graph = build_graph(model, tools, db_uri=os.environ["DATABASE_URL"])
         </div>
       </article>
 
+      <article id="schemas-private-state" class="card span-3">
+        <div class="card-head">
+          <div class="icon blue">SCH</div>
+          <div>
+            <h2>Input/Output Schemas &amp; Private State</h2>
+            <div class="caption">Expose a clean public API while keeping internal orchestration state private</div>
+          </div>
+        </div>
+        <div class="body">
+          <pre class="language-python"><code class="language-python">from typing import TypedDict
+from langgraph.graph import StateGraph, START, END
+
+class InputState(TypedDict):
+    question: str
+
+class OutputState(TypedDict):
+    answer: str
+    citations: list[str]
+
+class InternalState(TypedDict):
+    question: str
+    rewritten_query: str
+    retrieved_docs: list[str]
+    critique: str
+    answer: str
+    citations: list[str]
+
+def rewrite(state: InputState):
+    return {"rewritten_query": state["question"].strip().lower()}
+
+def retrieve(state: InternalState):
+    return {"retrieved_docs": retriever.invoke(state["rewritten_query"])}
+
+def answer(state: InternalState):
+    return {
+        "answer": model.invoke(format_prompt(state)).content,
+        "citations": [doc.metadata["source"] for doc in state["retrieved_docs"]],
+    }
+
+builder = StateGraph(
+    InternalState,
+    input_schema=InputState,
+    output_schema=OutputState,
+)
+builder.add_edge(START, "rewrite")
+builder.add_node("rewrite", rewrite)
+builder.add_node("retrieve", retrieve)
+builder.add_node("answer", answer)
+builder.add_edge("rewrite", "retrieve")
+builder.add_edge("retrieve", "answer")
+builder.add_edge("answer", END)
+
+graph = builder.compile()</code></pre>
+          <ul class="mono-list">
+            <li><code>input_schema</code><br>Public request contract. Keep it small and stable for APIs and UI clients.</li>
+            <li><code>output_schema</code><br>Public response contract. Hide intermediate scratchpad, scores, and private tool state.</li>
+            <li><code>InternalState</code><br>Full graph state with rewritten queries, retrieval results, critiques, approvals, and tool outputs.</li>
+            <li><code>Private channels</code><br>Nodes can exchange internal keys that never appear in the final response.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article id="node-control" class="card span-2">
+        <div class="card-head">
+          <div class="icon red">CTL</div>
+          <div>
+            <h2>Node Control: Retry, Cache, Defer</h2>
+            <div class="caption">Control reliability and execution timing at the node boundary</div>
+          </div>
+        </div>
+        <div class="body">
+          <pre class="language-python"><code class="language-python">from langgraph.types import CachePolicy, RetryPolicy
+
+def expensive_retrieval(state):
+    return {"docs": retriever.invoke(state["query"])}
+
+def flaky_external_api(state):
+    return {"crm": crm_client.lookup(state["customer_id"])}
+
+def final_audit_write(state):
+    audit_log.write(state)
+    return {"audit_written": True}
+
+builder.add_node(
+    "retrieve",
+    expensive_retrieval,
+    cache_policy=CachePolicy(ttl=300),
+)
+builder.add_node(
+    "crm_lookup",
+    flaky_external_api,
+    retry_policy=RetryPolicy(max_attempts=3),
+)
+builder.add_node(
+    "audit",
+    final_audit_write,
+    defer=True,
+)</code></pre>
+          <ul class="mono-list">
+            <li><code>retry_policy</code><br>Use for transient model/API/network errors, not validation or permission failures.</li>
+            <li><code>cache_policy</code><br>Cache deterministic expensive nodes such as retrieval, classification, or normalization.</li>
+            <li><code>defer=True</code><br>Run a node near graph end, useful for audit writes, cleanup, or final notifications.</li>
+            <li><code>idempotency</code><br>External writes need stable operation ids so retries and resumes do not duplicate actions.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article id="runtime-stream-control" class="card">
+        <div class="card-head">
+          <div class="icon gold">RUN</div>
+          <div>
+            <h2>Runtime Context, Recursion &amp; Custom Streams</h2>
+            <div class="caption">Pass request-scoped context, stop runaway loops, and stream domain events</div>
+          </div>
+        </div>
+        <div class="body">
+          <pre class="language-python"><code class="language-python">from typing import TypedDict
+from langgraph.config import get_stream_writer
+from langgraph.runtime import Runtime
+
+class State(TypedDict):
+    query: str
+    docs: list[str]
+
+class Context(TypedDict):
+    user_id: str
+    tenant_id: str
+    locale: str
+
+def search_node(state, runtime: Runtime[Context]):
+    writer = get_stream_writer()
+    writer({"phase": "search", "tenant": runtime.context["tenant_id"]})
+    tenant_retriever = retriever_for_tenant(runtime.context["tenant_id"])
+    docs = tenant_retriever.invoke(state["query"])
+    return {"docs": docs}
+
+builder = StateGraph(State, context_schema=Context)
+builder.add_node("search", search_node)
+graph = builder.compile(checkpointer=checkpointer)
+
+for event in graph.stream(
+    {"query": "refund policy"},
+    {
+        "configurable": {"thread_id": "u-42"},
+        "recursion_limit": 50,
+    },
+    context={"user_id": "42", "tenant_id": "acme", "locale": "en"},
+    stream_mode="custom",
+):
+    print(event)</code></pre>
+          <ul class="mono-list">
+            <li><code>context_schema</code><br>Runtime context for user, tenant, locale, request id, feature flags, or model policy.</li>
+            <li><code>recursion_limit</code><br>Protect agent loops and conditional cycles from running forever.</li>
+            <li><code>get_stream_writer</code><br>Emit custom progress events for UI, logs, or human-review panels.</li>
+            <li><code>stream_mode</code><br>Use <code>updates</code>, <code>values</code>, <code>messages</code>, <code>debug</code>, or <code>custom</code> for different UX needs.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article id="subgraph-migration" class="card span-3">
+        <div class="card-head">
+          <div class="icon green">MIG</div>
+          <div>
+            <h2>Subgraph Persistence &amp; Graph Migrations</h2>
+            <div class="caption">How to evolve orchestration without breaking long-running threads</div>
+          </div>
+        </div>
+        <div class="body">
+          <pre class="language-python"><code class="language-python"># Subgraph with shared state keys
+class ParentState(TypedDict):
+    question: str
+    research_notes: list[str]
+    final_answer: str
+
+class ResearchState(TypedDict):
+    question: str
+    research_notes: list[str]
+
+research_builder = StateGraph(ResearchState)
+research_builder.add_node("search", search_node)
+research_builder.add_node("summarize", summarize_node)
+research_builder.add_edge(START, "search")
+research_builder.add_edge("search", "summarize")
+research_builder.add_edge("summarize", END)
+research_graph = research_builder.compile()
+
+parent = StateGraph(ParentState)
+parent.add_node("research", research_graph)
+parent.add_node("write_answer", write_answer)
+parent.add_edge(START, "research")
+parent.add_edge("research", "write_answer")
+parent.add_edge("write_answer", END)
+graph = parent.compile(checkpointer=checkpointer)
+
+# Migration rule of thumb:
+# - Additive state keys are safest.
+# - Renaming/removing keys needs migration code.
+# - Keep node names stable for interrupted/checkpointed runs.</code></pre>
+          <ul class="mono-list">
+            <li><code>Shared persistence</code><br>Parent checkpointer can persist subgraph execution when subgraphs run as nodes.</li>
+            <li><code>Isolated ownership</code><br>Use subgraphs for teams or steps with their own schema, evals, and release cadence.</li>
+            <li><code>Schema migration</code><br>Add keys safely; migrate or backfill renamed keys before resuming old threads.</li>
+            <li><code>Checkpoint compatibility</code><br>Changing node names, interrupt points, or routing labels can affect paused runs.</li>
+          </ul>
+        </div>
+      </article>
+
       <article id="patterns" class="card span-3">
         <div class="card-head">
           <div class="icon green">MAP</div>
@@ -1365,6 +1574,14 @@ graph = build_graph(model, tools, db_uri=os.environ["DATABASE_URL"])
             <li><code>ToolNode</code><br>Execute tool calls correctly inside an agent loop.</li>
             <li><code>Functional API</code><br>Imperative, linear workflows with little graph topology.</li>
             <li><code>Subgraph</code><br>Package sub-workflows, teams, or child agents with separate schemas.</li>
+            <li><code>input_schema / output_schema</code><br>Expose clean public API while keeping internal graph state private.</li>
+            <li><code>context_schema</code><br>Pass request-scoped user, tenant, locale, and feature flags without polluting state.</li>
+            <li><code>RetryPolicy</code><br>Retry transient node failures such as provider timeouts or flaky external APIs.</li>
+            <li><code>CachePolicy</code><br>Cache deterministic expensive nodes such as retrieval, normalization, and classification.</li>
+            <li><code>defer=True</code><br>Run cleanup, audit, or notification nodes near graph completion.</li>
+            <li><code>recursion_limit</code><br>Protect loops and agent routes from runaway execution.</li>
+            <li><code>custom stream writer</code><br>Emit domain progress events to UI while the graph runs.</li>
+            <li><code>graph migrations</code><br>Evolve state schema and topology carefully for checkpointed threads.</li>
           </ul>
         </div>
       </article>
@@ -1373,7 +1590,7 @@ graph = build_graph(model, tools, db_uri=os.environ["DATABASE_URL"])
     <footer class="footer">
       <div>
         LangGraph Cheatsheet - Core Components Reference.
-        Compiled from documents official LangGraph, checked on 2026-06-30.
+        Compiled from official LangGraph docs, checked on 2026-06-30.
       </div>
       <span>
         <a href="https://docs.langchain.com/oss/python/langgraph/overview">overview</a>
