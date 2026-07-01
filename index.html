@@ -187,12 +187,11 @@
       color: #163963;
       font-size: 11px;
       line-height: 1.55;
-      white-space: pre;
     }
 
     pre[class*="language-"],
     code[class*="language-"] {
-      background: #fffaff;
+      background: #fffaff !important;
       color: #172033;
       text-shadow: none;
       font-size: 11px;
@@ -201,15 +200,6 @@
       border-left-color: #326aab;
       box-shadow: inset 0 0 0 1px rgba(124, 58, 237, .18), 0 8px 18px rgba(36, 88, 154, .08);
     }
-    .token.comment, .token.prolog, .token.doctype, .token.cdata { color: #69758a; font-style: italic; }
-    .token.keyword { color: #7c3aed; font-weight: 900; }
-    .token.string, .token.char { color: #047857; font-weight: 650; }
-    .token.function { color: #0369a1; font-weight: 800; }
-    .token.class-name, .token.constant { color: #b45309; font-weight: 850; }
-    .token.number, .token.boolean { color: #dc2626; font-weight: 800; }
-    .token.operator, .token.punctuation { color: #334155; }
-    .token.builtin, .token.decorator { color: #be185d; font-weight: 800; }
-    .token.attr-name, .token.property { color: #c2410c; font-weight: 750; }
 
     .note {
       display: grid;
@@ -365,7 +355,7 @@ def create_ticket(title: str, severity: str) -> str:
     """Use only after the user confirms ticket creation."""
     return f"ticket created: {title} / {severity}"
 
-model = init_chat_model("openai:gpt-4.1", temperature=0)
+model = init_chat_model("openai:gpt-4o", temperature=0)
 checkpointer = InMemorySaver()
 
 agent = create_react_agent(
@@ -379,10 +369,12 @@ agent = create_react_agent(
 )
 
 config = {"configurable": {"thread_id": "support-42"}}
-result = agent.invoke(
-    {"messages": [{"role": "user", "content": "How do I fix API timeout errors?"}]},
-    config,
-)</code></pre>
+
+async def run_agent():
+    result = await agent.ainvoke(
+        {"messages": [{"role": "user", "content": "How do I fix API timeout errors?"}]},
+        config,
+    )</code></pre>
           <div class="note">
             <p><b>Start here:</b> <code>create_react_agent</code> already gives you model calls, tool execution, message state, streaming, and checkpointing.</p>
             <p><b>Go custom when:</b> you need approval gates, deterministic routing, multi-agent teams, map-reduce, retries, or state editing.</p>
@@ -394,7 +386,7 @@ result = agent.invoke(
         <div class="card-head">
           <div class="icon gold">LOOP</div>
           <div>
-            <h2>Custom Agent Loop</h2>
+            <h2>Custom Agent Loop (Async)</h2>
             <div class="caption">Model node -> tools node -> route until no tool calls</div>
           </div>
         </div>
@@ -411,10 +403,11 @@ def lookup_order(order_id: str) -> str:
     return "shipped"
 
 tools = [lookup_order]
-model = init_chat_model("openai:gpt-4.1", temperature=0).bind_tools(tools)
+model = init_chat_model("openai:gpt-4o", temperature=0).bind_tools(tools)
 
-def call_model(state: MessagesState):
-    response = model.invoke(state["messages"])
+# Async node function
+async def call_model(state: MessagesState):
+    response = await model.ainvoke(state["messages"])
     return {"messages": [response]}
 
 def route_tools(state: MessagesState) -> Literal["tools", "__end__"]:
@@ -529,10 +522,10 @@ def add_result(state: State):
           </div>
           <pre class="language-python"><code class="language-python">from langchain.chat_models import init_chat_model
 
-model = init_chat_model("openai:gpt-4.1")
+model = init_chat_model("openai:gpt-4o")
 
-def call_model(state: State):
-    response = model.invoke(state["messages"])
+async def call_model(state: State):
+    response = await model.ainvoke(state["messages"])
     return {"messages": [response]}
 
 def validate(state: State):
@@ -614,12 +607,45 @@ def fan_out(state: State):
         for doc in state["docs"]
     ]
 
-builder.add_conditional_edges("split", fan_out)
-</code></pre>
+builder.add_conditional_edges("split", fan_out)</code></pre>
           <div class="note">
             <p><b>Best:</b> Use <code>Command</code> when state updates and routing belong to the same decision.</p>
             <p class="bad"><b>Mistake:</b> Overuse dynamic routing when simple conditional edges would be easier to read.</p>
           </div>
+        </div>
+      </article>
+
+      <article id="map-reduce" class="card span-2">
+        <div class="card-head">
+          <div class="icon green">MR</div>
+          <div>
+            <h2>Map-Reduce (Parallel Orchestration)</h2>
+            <div class="caption">Tận dụng Send để xử lý dữ liệu song song và gom cụm</div>
+          </div>
+        </div>
+        <div class="body">
+          <pre class="language-python"><code class="language-python">from typing import Annotated
+import operator
+from langgraph.types import Send
+from langgraph.graph import StateGraph, END
+
+class MapReduceState(TypedDict):
+    items: list[str]
+    results: Annotated[list[str], operator.add]
+
+def fan_out_items(state: MapReduceState):
+    # Trả về danh sách tác vụ song song
+    return [Send("process_item", {"item": item}) for item in state["items"]]
+
+async def process_item(state: dict) -> dict:
+    # Xử lý song song phi chặn (async)
+    summary = await model.ainvoke(f"Summarize: {state['item']}")
+    return {"results": [summary.content]}
+
+builder = StateGraph(MapReduceState)
+builder.add_node("process_item", process_item)
+builder.add_conditional_edges(START, fan_out_items)
+builder.add_edge("process_item", END)</code></pre>
         </div>
       </article>
 
@@ -644,11 +670,11 @@ class AgentState(MessagesState):
     user_id: str
     summary: str
 
-def call_model(state: AgentState):
-    response = model.invoke(state["messages"])
+async def call_model(state: AgentState):
+    response = await model.ainvoke(state["messages"])
     return {"messages": [response]}
 
-graph.invoke({
+await graph.ainvoke({
     "messages": [{"role": "user", "content": "Hi"}],
     "user_id": "u-42",
 })</code></pre>
@@ -685,8 +711,9 @@ def get_weather(city: str) -> str:
 tools = [get_weather]
 model_with_tools = model.bind_tools(tools)
 
-def chatbot(state: MessagesState):
-    return {"messages": [model_with_tools.invoke(state["messages"])]}
+async def chatbot(state: MessagesState):
+    res = await model_with_tools.ainvoke(state["messages"])
+    return {"messages": [res]}
 
 builder.add_node("chatbot", chatbot)
 builder.add_node("tools", ToolNode(tools))
@@ -724,17 +751,8 @@ config = {
     "configurable": {"thread_id": "conversation-42"}
 }
 
-graph.invoke(
-    {"messages": [{"role": "user", "content": "Remember me"}]},
-    config,
-)
-
-state = graph.get_state(config)
-history = list(graph.get_state_history(config))
-
 # Production must use a durable checkpoint store.</code></pre>
           <pre class="language-python"><code class="language-python"># Production: Postgres checkpointer.
-# pip install langgraph-checkpoint-postgres
 from langgraph.checkpoint.postgres import PostgresSaver
 
 DB_URI = "postgresql://postgres:postgres@localhost:5432/ai?sslmode=disable"
@@ -743,13 +761,8 @@ with PostgresSaver.from_conn_string(DB_URI) as checkpointer:
     checkpointer.setup()  # run once during migration/bootstrap
 
     graph = builder.compile(checkpointer=checkpointer)
-    config = {"configurable": {"thread_id": "support:ticket-8842"}}
-
-    graph.invoke({"messages": [{"role": "user", "content": "Continue"}]}, config)
-    snapshot = graph.get_state(config)
-    checkpoints = list(graph.get_state_history(config))</code></pre>
+    config = {"configurable": {"thread_id": "support:ticket-8842"}}</code></pre>
           <pre class="language-python"><code class="language-python"># Async service: AsyncPostgresSaver + async graph runtime.
-# pip install langgraph-checkpoint-postgres
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 async def build_async_graph():
@@ -769,21 +782,10 @@ async def build_async_graph():
             stream_mode="updates",
         ):
             print(update)
-
         return result</code></pre>
-          <pre class="language-python"><code class="language-python"># Local durable development: SQLite checkpointer.
-# pip install langgraph-checkpoint-sqlite
-import sqlite3
-from langgraph.checkpoint.sqlite import SqliteSaver
-
-conn = sqlite3.connect("langgraph-checkpoints.sqlite", check_same_thread=False)
-checkpointer = SqliteSaver(conn)
-
-graph = builder.compile(checkpointer=checkpointer)
-graph.invoke(input_state, {"configurable": {"thread_id": "local-debug-1"}})</code></pre>
           <div class="note">
             <p><b>Best:</b> Keep <code>thread_id</code> stable by conversation, run Postgres migrations deliberately, and use async savers in async servers.</p>
-            <p class="bad"><b>Mistake:</b> use <code>InMemorySaver</code> for real production data, forget <code>setup()</code>, or mix random thread IDs with resumable workflows.</p>
+            <p class="bad"><b>Mistake:</b> Use <code>InMemorySaver</code> for real production data, forget <code>setup()</code>, or mix random thread IDs with resumable workflows.</p>
           </div>
         </div>
       </article>
@@ -821,42 +823,6 @@ def save_preference(state, runtime: Runtime):
 config = {"configurable": {"thread_id": "t-1"}}
 context = {"user_id": "u-42"}
 graph.invoke(input_state, config=config, context=context)</code></pre>
-          <pre class="language-python"><code class="language-python"># Production long-term memory: durable SQL store.
-# pip install langgraph-checkpoint-postgres
-from langgraph.store.postgres import PostgresStore
-from langgraph.checkpoint.postgres import PostgresSaver
-
-with (
-    PostgresSaver.from_conn_string(DB_URI) as checkpointer,
-    PostgresStore.from_conn_string(DB_URI) as store,
-):
-    checkpointer.setup()
-    store.setup()
-    graph = builder.compile(store=store, checkpointer=checkpointer)
-
-    # Namespaces prevent tenants/users from reading each other.
-    store.put(
-        ("tenant", "acme", "user", "u-42", "profile"),
-        "preferences",
-        {"tone": "concise", "timezone": "Asia/Ho_Chi_Minh"},
-    )
-
-    profile = store.get(
-        ("tenant", "acme", "user", "u-42", "profile"),
-        "preferences",
-    )</code></pre>
-          <pre class="language-python"><code class="language-python">def load_user_memory(state, runtime: Runtime):
-    namespace = (
-        "tenant",
-        runtime.context["tenant_id"],
-        "user",
-        runtime.context["user_id"],
-        "profile",
-    )
-    item = runtime.store.get(namespace, "preferences")
-    if item is None:
-        return {"user_memory": {}}
-    return {"user_memory": item.value}</code></pre>
           <div class="note">
             <p><b>Best:</b> Use checkpointers for thread state and Store for cross-thread user facts; namespace by tenant/user/product.</p>
             <p class="bad"><b>Mistake:</b> Store uncontrolled PII, use Store as checkpoint replacement, or skip tenant isolation in SQL namespaces.</p>
@@ -893,79 +859,11 @@ def approve_payment(state: State):
 graph = builder.compile(checkpointer=checkpointer)
 config = {"configurable": {"thread_id": "pay-1"}}
 
-graph.invoke({"amount": 100}, config)
-graph.invoke(Command(resume={"approved": True}), config)</code></pre>
-          <pre class="language-python"><code class="language-python"># Real workflow: interrupt before the irreversible side effect.
-from typing import TypedDict
-from langgraph.graph import StateGraph, START, END
-from langgraph.types import Command, interrupt
-
-class PaymentState(TypedDict):
-    user_id: str
-    amount_cents: int
-    payee_id: str
-    approved: bool
-    payment_id: str | None
-
-def request_approval(state: PaymentState):
-    decision = interrupt({
-        "kind": "payment_approval",
-        "user_id": state["user_id"],
-        "amount_cents": state["amount_cents"],
-        "payee_id": state["payee_id"],
-    })
-    return {"approved": decision["approved"]}
-
-def charge_card(state: PaymentState):
-    if not state["approved"]:
-        return {"payment_id": None}
-
-    # Use an idempotency key because nodes can be retried or resumed.
-    payment_id = payments.charge(
-        user_id=state["user_id"],
-        amount_cents=state["amount_cents"],
-        payee_id=state["payee_id"],
-        idempotency_key=f"{state['user_id']}:{state['payee_id']}",
-    )
-    return {"payment_id": payment_id}
-
-builder = StateGraph(PaymentState)
-builder.add_node("request_approval", request_approval)
-builder.add_node("charge_card", charge_card)
-builder.add_edge(START, "request_approval")
-builder.add_edge("request_approval", "charge_card")
-builder.add_edge("charge_card", END)
-
-graph = builder.compile(checkpointer=checkpointer)
-config = {"configurable": {"thread_id": "payment:u-42:2026-06-30"}}
-
-first = graph.invoke({
-    "user_id": "u-42",
-    "amount_cents": 4500,
-    "payee_id": "vendor-9",
-    "approved": False,
-    "payment_id": None,
-}, config)
-
-# UI renders first["__interrupt__"], human clicks approve.
-final = graph.invoke(Command(resume={"approved": True}), config)</code></pre>
-          <pre class="language-python"><code class="language-python"># Human edits state before resume.
-config = {"configurable": {"thread_id": "refund-123"}}
-graph.invoke(initial_state, config)
-
-snapshot = graph.get_state(config)
-graph.update_state(
-    config,
-    {"amount_cents": 2500, "audit_note": "Reviewer reduced refund."},
-    as_node="request_approval",
-)
-graph.invoke(Command(resume={"approved": True}), config)</code></pre>
-          <pre class="language-python"><code class="language-python"># Async resume endpoint.
-async def approve_payment(thread_id: str, approved: bool):
-    return await graph.ainvoke(
-        Command(resume={"approved": approved}),
-        config={"configurable": {"thread_id": thread_id}},
-    )</code></pre>
+# Execute async
+async def run_payment():
+    await graph.ainvoke({"amount": 100}, config)
+    # Resume sau khi được duyệt
+    await graph.ainvoke(Command(resume={"approved": True}), config)</code></pre>
           <div class="note">
             <p><b>Best:</b> Interrupt before side effects and include enough payload for the UI to show the decision.</p>
             <p class="bad"><b>Mistake:</b> Charge/send/delete before the interrupt, or omit an idempotency key for retried/resumed nodes.</p>
@@ -988,50 +886,113 @@ async def approve_payment(thread_id: str, approved: bool):
             <div class="fact"><b>Modes</b> <code>values</code>, <code>updates</code>, <code>messages</code>, <code>debug</code>, <code>custom</code></div>
             <div class="fact"><b>Methods</b> <code>stream</code>, <code>astream</code>, <code>astream_events</code></div>
           </div>
-          <pre class="language-python"><code class="language-python">for chunk in graph.stream(
-    {"messages": [{"role": "user", "content": "Hi"}]},
-    stream_mode="updates",
-):
-    print(chunk)
-
-for token, metadata in graph.stream(
-    input_state,
-    stream_mode="messages",
-):
-    print(token.content, end="")
-
-async for event in graph.astream_events(input_state):
-    print(event["event"], event.get("name"))</code></pre>
-          <pre class="language-python"><code class="language-python"># Async UI stream: separate node updates from LLM tokens.
-async def stream_graph(thread_id: str, user_text: str):
-    config = {"configurable": {"thread_id": thread_id}}
-    async for mode, chunk in graph.astream(
-        {"messages": [{"role": "user", "content": user_text}]},
-        config=config,
-        stream_mode=["updates", "messages"],
+          <pre class="language-python"><code class="language-python"># Async streaming updates
+async def run_stream():
+    async for chunk in graph.astream(
+        {"messages": [{"role": "user", "content": "Hi"}]},
+        stream_mode="updates",
     ):
-        if mode == "updates":
-            yield {"type": "node_update", "value": chunk}
-        elif mode == "messages":
-            token, metadata = chunk
-            if token.content:
-                yield {
-                    "type": "token",
-                    "node": metadata.get("langgraph_node"),
-                    "value": token.content,
-                }</code></pre>
-          <pre class="language-python"><code class="language-python"># Durable streaming: balance latency vs checkpoint write guarantees.
-async for chunk in graph.astream(
-    input_state,
-    config={"configurable": {"thread_id": "ops-1"}},
-    stream_mode="updates",
-    durability="async",  # "sync" for strongest persistence before next step
-):
-    print(chunk)</code></pre>
+        print(chunk)
+
+    # Async streaming LLM tokens
+    async for token, metadata in graph.astream(
+        input_state,
+        stream_mode="messages",
+    ):
+        print(token.content, end="")</code></pre>
           <div class="note">
             <p><b>Best:</b> use <code>updates</code> for progress, <code>messages</code> for token UI, <code>custom</code> for domain events, and events for tracing.</p>
             <p class="bad"><b>Mistake:</b> Assume chunk formats are identical across stream modes.</p>
           </div>
+        </div>
+      </article>
+
+      <article id="fastapi" class="card span-2">
+        <div class="card-head">
+          <div class="icon blue">API</div>
+          <div>
+            <h2>FastAPI + LangGraph Streaming API</h2>
+            <div class="caption">FastAPI endpoint trả về LLM tokens stream theo thời gian thực</div>
+          </div>
+        </div>
+        <div class="body">
+          <pre class="language-python"><code class="language-python">from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+import json
+
+app = FastAPI()
+
+class ChatRequest(BaseModel):
+    message: str
+    thread_id: str
+
+@app.post("/chat/stream")
+async def chat_stream_endpoint(payload: ChatRequest):
+    config = {"configurable": {"thread_id": payload.thread_id}}
+    
+    async def sse_generator():
+        # stream_mode="messages" cho phép stream LLM tokens async
+        async for chunk, metadata in graph.astream(
+            {"messages": [("user", payload.message)]},
+            config=config,
+            stream_mode="messages"
+        ):
+            if chunk.content:
+                yield f"data: {json.dumps({'token': chunk.content})}\n\n"
+                
+    return StreamingResponse(sse_generator(), media_type="text/event-stream")</code></pre>
+        </div>
+      </article>
+
+      <article id="testing" class="card">
+        <div class="card-head">
+          <div class="icon green">TST</div>
+          <div>
+            <h2>Testing Graphs</h2>
+            <div class="caption">Viết pytest unit test cho nodes và routers</div>
+          </div>
+        </div>
+        <div class="body">
+          <pre class="language-python"><code class="language-python">import pytest
+from langchain_core.messages import AIMessage
+
+@pytest.mark.asyncio
+async def test_call_model_node_logic():
+    # Unit test độc lập cho node call_model
+    state = {"messages": [("user", "Hello")]}
+    res = await call_model(state)
+    assert len(res["messages"]) == 1
+
+def test_route_tools_condition():
+    # Test router logic
+    state = {"messages": [AIMessage(content="test", tool_calls=[{"name": "lookup"}])]}
+    assert route_tools(state) == "tools"</code></pre>
+        </div>
+      </article>
+
+      <article id="multimodel" class="card span-2">
+        <div class="card-head">
+          <div class="icon gold">RTE</div>
+          <div>
+            <h2>Multi-Model Adaptive Routing</h2>
+            <div class="caption">Định tuyến động: Model rẻ xử lý trước, nâng cấp lên model cao cấp khi cần</div>
+          </div>
+        </div>
+        <div class="body">
+          <pre class="language-python"><code class="language-python">from langchain.chat_models import init_chat_model
+
+async def route_by_complexity_node(state: MessagesState):
+    cheap_model = init_chat_model("openai:gpt-4o-mini")
+    res = await cheap_model.ainvoke(state["messages"])
+    
+    # Nếu câu trả lời chứa từ khóa không chắc chắn, chuyển hướng lên model o1
+    if "unable to answer" in res.content.lower() or "complex query" in res.content.lower():
+        premium_model = init_chat_model("openai:o1")
+        upgrade_res = await premium_model.ainvoke(state["messages"])
+        return {"messages": [upgrade_res]}
+        
+    return {"messages": [res]}</code></pre>
         </div>
       </article>
 
@@ -1070,8 +1031,7 @@ parent.add_node("qa", subgraph)
 parent.add_node("finalize", lambda s: {"final": s["answer"]})
 parent.add_edge(START, "qa")
 parent.add_edge("qa", "finalize")
-parent.add_edge("finalize", END)
-</code></pre>
+parent.add_edge("finalize", END)</code></pre>
           <div class="note">
             <p><b>Best:</b> Use subgraphs to package workflows with clear ownership and schema boundaries.</p>
             <p class="bad"><b>Mistake:</b> Share too many state keys and create high parent/subgraph coupling.</p>
@@ -1079,46 +1039,7 @@ parent.add_edge("finalize", END)
         </div>
       </article>
 
-      <article id="functional" class="card">
-        <div class="card-head">
-          <div class="icon green">FN</div>
-          <div>
-            <h2>Functional API</h2>
-            <div class="caption">Workflow and task decorators</div>
-          </div>
-        </div>
-        <div class="body">
-          <div class="mini">
-            <div class="fact"><b>Concept</b> Write workflows with decorators instead of declaring a graph manually.</div>
-            <div class="fact"><b>Use when</b> Flows that look like normal code but still need persistence and streaming.</div>
-            <div class="fact"><b>Import</b> <code>from langgraph.func import entrypoint, task</code></div>
-            <div class="fact"><b>Methods</b> Call tasks with <code>.result()</code>; invoke or stream the workflow like a graph.</div>
-          </div>
-          <pre class="language-python"><code class="language-python">from langgraph.func import entrypoint, task
-from langgraph.checkpoint.memory import InMemorySaver
-
-@task
-def research(topic: str) -> str:
-    return f"facts about {topic}"
-
-@task
-def write_answer(facts: str) -> str:
-    return f"Answer: {facts}"
-
-@entrypoint(checkpointer=InMemorySaver())
-def workflow(topic: str) -> str:
-    facts = research(topic).result()
-    return write_answer(facts).result()
-
-workflow.invoke("LangGraph")</code></pre>
-          <div class="note">
-            <p><b>Best:</b> Use the Functional API for linear or imperative workflows.</p>
-            <p class="bad"><b>Mistake:</b> Use the Functional API when you need complex graph topology with many visually inspected routes.</p>
-          </div>
-        </div>
-      </article>
-
-      <article id="prebuilt" class="card span-2">
+      <article id="prebuilt" class="card span-3">
         <div class="card-head">
           <div class="icon red">AG</div>
           <div>
@@ -1142,7 +1063,7 @@ def search(query: str) -> str:
     """Search trusted docs."""
     return "LangGraph supports durable state."
 
-model = init_chat_model("openai:gpt-4.1")
+model = init_chat_model("openai:gpt-4o")
 agent = create_react_agent(
     model=model,
     tools=[search],
@@ -1150,379 +1071,15 @@ agent = create_react_agent(
     checkpointer=checkpointer,
 )
 
-result = agent.invoke(
-    {"messages": [{"role": "user", "content": "What is LangGraph?"}]},
-    {"configurable": {"thread_id": "agent-1"}},
-)</code></pre>
+async def run_prebuilt():
+    result = await agent.ainvoke(
+        {"messages": [{"role": "user", "content": "What is LangGraph?"}]},
+        {"configurable": {"thread_id": "agent-1"}},
+    )</code></pre>
           <div class="note">
             <p><b>Best:</b> start with prebuilt agent, then custom StateGraph when needs control flow separate.</p>
             <p class="bad"><b>Mistake:</b> Build a ReAct loop from scratch when a prebuilt agent already fits.</p>
           </div>
-        </div>
-      </article>
-
-      <article id="memory" class="card">
-        <div class="card-head">
-          <div class="icon blue">MEM</div>
-          <div>
-            <h2>Memory Patterns</h2>
-            <div class="caption">Short-term, long-term, summarization</div>
-          </div>
-        </div>
-        <div class="body">
-          <div class="mini">
-            <div class="fact"><b>Short-term</b> Checkpointer + thread state keeps conversation history.</div>
-            <div class="fact"><b>Long-term</b> Store stores facts/preferences across threads.</div>
-            <div class="fact"><b>Context</b> Runtime context passes user_id, tenant_id, and request scope.</div>
-            <div class="fact"><b>Manage</b> Trim/summarize messages to stay within the context window.</div>
-          </div>
-          <pre class="language-python"><code class="language-python">from langgraph.graph import MessagesState
-
-class ChatState(MessagesState):
-    summary: str
-
-def summarize_if_long(state: ChatState):
-    messages = state["messages"]
-    if len(messages) < 12:
-        return {}
-    summary = model.invoke([
-        {"role": "system", "content": "Summarize chat."},
-        *messages,
-    ])
-    return {
-        "summary": summary.content,
-        "messages": messages[-6:],
-    }</code></pre>
-          <div class="note">
-            <p><b>Best:</b> Separate context memory from user knowledge memory.</p>
-            <p class="bad"><b>Mistake:</b> Put the entire history into the prompt forever or store unverified memories.</p>
-          </div>
-        </div>
-      </article>
-
-      <article id="time-travel" class="card">
-        <div class="card-head">
-          <div class="icon gold">TT</div>
-          <div>
-            <h2>Time Travel &amp; State Editing</h2>
-            <div class="caption">Inspect, fork, replay, update graph state</div>
-          </div>
-        </div>
-        <div class="body">
-          <div class="mini">
-            <div class="fact"><b>Concept</b> Use checkpoints to inspect history, resume from a checkpoint, and fork execution.</div>
-            <div class="fact"><b>Use when</b> Debug agent, fix human input, replay workflow, audit path.</div>
-            <div class="fact"><b>Methods</b> <code>get_state</code>, <code>get_state_history</code>, <code>update_state</code></div>
-            <div class="fact"><b>Requires</b> Graph compile with checkpointer.</div>
-          </div>
-          <pre class="language-python"><code class="language-python">config = {"configurable": {"thread_id": "debug-1"}}
-
-graph.invoke(input_state, config)
-
-current = graph.get_state(config)
-for checkpoint in graph.get_state_history(config):
-    print(checkpoint.next, checkpoint.values)
-
-graph.update_state(
-    config,
-    {"approved": True},
-    as_node="human_review",
-)
-
-graph.invoke(None, config)</code></pre>
-          <div class="note">
-            <p><b>Best:</b> Use state history to debug routing and tool outputs instead of relying on print statements.</p>
-            <p class="bad"><b>Mistake:</b> Update state from the wrong node/context and make replay hard to reason about.</p>
-          </div>
-        </div>
-      </article>
-
-      <article id="deployment" class="card">
-        <div class="card-head">
-          <div class="icon green">DEP</div>
-          <div>
-            <h2>Deployment &amp; Platform</h2>
-            <div class="caption">LangGraph Platform, Server, Studio, CLI</div>
-          </div>
-        </div>
-        <div class="body">
-          <div class="mini">
-            <div class="fact"><b>Concept</b> Runtime/platform for deploying long-running agents with threads, assistants, and runs.</div>
-            <div class="fact"><b>Use when</b> Production APIs, background runs, persistence, deployment management.</div>
-            <div class="fact"><b>Config</b> <code>langgraph.json</code> declares graph entrypoints.</div>
-            <div class="fact"><b>Tools</b> LangGraph Server, Studio, CLI, SDKs.</div>
-          </div>
-          <pre class="language-python"><code class="language-python">{
-  "dependencies": ["."],
-  "graphs": {
-    "agent": "./src/agent.py:graph"
-  },
-  "env": ".env"
-}
-
-# Local dev server
-langgraph dev
-
-# Client concepts:
-# assistants, threads, runs, cron jobs</code></pre>
-          <div class="note">
-            <p><b>Best:</b> Separate graph construction from the app server and configure secrets through env vars.</p>
-            <p class="bad"><b>Mistake:</b> deploy graph not has checkpoint/store production or missing tracing.</p>
-          </div>
-        </div>
-      </article>
-
-      <article id="observability" class="card">
-        <div class="card-head">
-          <div class="icon blue">OBS</div>
-          <div>
-            <h2>Observability</h2>
-            <div class="caption">LangSmith tracing, debug, events</div>
-          </div>
-        </div>
-        <div class="body">
-          <div class="mini">
-            <div class="fact"><b>Concept</b> Trace node execution, model calls, tools, state transitions, latency.</div>
-            <div class="fact"><b>Use when</b> Debug loops, evaluate agent quality, monitor production failures.</div>
-            <div class="fact"><b>Env</b> <code>LANGSMITH_TRACING=true</code>, <code>LANGSMITH_API_KEY</code></div>
-            <div class="fact"><b>Streams</b> <code>debug</code>, <code>astream_events</code>, LangSmith traces.</div>
-          </div>
-          <pre class="language-python"><code class="language-python">import os
-
-os.environ["LANGSMITH_TRACING"] = "true"
-os.environ["LANGSMITH_API_KEY"] = "lsv2_..."
-os.environ["LANGSMITH_PROJECT"] = "langgraph-demo"
-
-for chunk in graph.stream(
-    input_state,
-    stream_mode="debug",
-):
-    print(chunk)</code></pre>
-          <div class="note">
-            <p><b>Best:</b> tag runs by workflow/user segment and scrub PII before tracing.</p>
-            <p class="bad"><b>Mistake:</b> Debug graphs with scattered print statements instead of checkpoints/history.</p>
-          </div>
-        </div>
-      </article>
-
-      <article id="advanced-api" class="card span-3">
-        <div class="card-head">
-          <div class="icon blue">API</div>
-          <div>
-            <h2>Advanced API Map</h2>
-            <div class="caption">Core LangGraph functions, classes, and runtime operations</div>
-          </div>
-        </div>
-        <div class="body">
-          <pre class="language-python"><code class="language-python">from typing import Annotated, Literal, TypedDict
-import operator
-from langgraph.types import Command, Send, interrupt
-
-class ResearchState(TypedDict):
-    question: str
-    queries: list[str]
-    findings: Annotated[list[str], operator.add]
-    approved: bool
-
-def plan(state: ResearchState):
-    return {
-        "queries": [
-            f"{state['question']} docs",
-            f"{state['question']} changelog",
-        ]
-    }
-
-def fan_out(state: ResearchState):
-    return [Send("search", {"query": q}) for q in state["queries"]]
-
-def approve(state: ResearchState) -> Command[Literal["publish", "revise"]]:
-    decision = interrupt({"draft": state["findings"]})
-    return Command(
-        update={"approved": decision == "approve"},
-        goto="publish" if decision == "approve" else "revise",
-    )</code></pre>
-          <ul class="mono-list">
-            <li><code>StateGraph(State)</code><br><code>add_node</code>, <code>add_edge</code>, <code>add_conditional_edges</code>, <code>set_entry_point</code>, <code>set_finish_point</code>, <code>compile</code>.</li>
-            <li><code>CompiledStateGraph</code><br><code>invoke</code>, <code>ainvoke</code>, <code>stream</code>, <code>astream</code>, <code>get_state</code>, <code>get_state_history</code>, <code>update_state</code>.</li>
-            <li><code>MessagesState</code><br>Default chat state with <code>messages</code> and <code>add_messages</code>; extend it for <code>user_id</code>, <code>summary</code>, <code>plan</code>, or <code>scratchpad</code>.</li>
-            <li><code>Command</code><br>Return <code>Command(update=..., goto=...)</code> for combined state update and routing, or <code>Command(resume=...)</code> after interrupts.</li>
-            <li><code>Send</code><br>Dynamic fan-out for map-reduce, parallel workers, per-document analysis, or multi-agent delegation.</li>
-            <li><code>interrupt()</code><br>Pause execution for human approval, user input, state edits, or risky tool calls.</li>
-            <li><code>ToolNode</code><br>Executes tool calls from the last AI message and appends ToolMessages to state.</li>
-            <li><code>tools_condition</code><br>Prebuilt router for model -> tools -> model loops when using message state.</li>
-            <li><code>Checkpointers</code><br><code>InMemorySaver</code> for demos; durable SQLite/Postgres savers for production threads and recovery.</li>
-            <li><code>Store</code><br><code>put</code>, <code>get</code>, <code>search</code>, <code>delete</code> for long-term memory outside a single thread.</li>
-            <li><code>@entrypoint / @task</code><br>Functional API for imperative workflows that still need persistence, streaming, and retries.</li>
-            <li><code>LangGraph Platform</code><br><code>langgraph.json</code>, assistants, threads, runs, cron/background jobs, Studio, Server, and SDK clients.</li>
-          </ul>
-        </div>
-      </article>
-
-      <article id="real-life-langgraph" class="card span-3">
-        <div class="card-head">
-          <div class="icon blue">PRO</div>
-          <div>
-            <h2>Real-Life LangGraph Patterns</h2>
-            <div class="caption">Production orchestration patterns that show up outside toy demos</div>
-          </div>
-        </div>
-        <div class="body">
-          <pre class="language-python"><code class="language-python">from typing import Literal
-from langgraph.graph import StateGraph, START, END
-
-class TicketState(TypedDict):
-    request: str
-    route: Literal["docs", "diagnostics", "ticket", "done"]
-    evidence: list[str]
-
-def supervisor(state: TicketState):
-    if "error code" in state["request"].lower():
-        return {"route": "diagnostics"}
-    if "how do i" in state["request"].lower():
-        return {"route": "docs"}
-    return {"route": "ticket"}
-
-def route(state: TicketState):
-    return state["route"]
-
-builder = StateGraph(TicketState)
-builder.add_node("supervisor", supervisor)
-builder.add_node("docs", docs_agent)
-builder.add_node("diagnostics", diagnostics_agent)
-builder.add_node("ticket", ticket_agent)
-builder.add_edge(START, "supervisor")
-builder.add_conditional_edges(
-    "supervisor",
-    route,
-    {"docs": "docs", "diagnostics": "diagnostics", "ticket": "ticket"},
-)
-builder.add_edge("docs", END)
-builder.add_edge("diagnostics", END)
-builder.add_edge("ticket", END)
-graph = builder.compile(checkpointer=checkpointer)</code></pre>
-          <ul class="mono-list">
-            <li><code>Support agent</code><br>Retrieve docs -> ask clarification -> call diagnostic tools -> create ticket only after confirmation.</li>
-            <li><code>Research workflow</code><br>Plan -> fan out searches with <code>Send</code> -> summarize each source -> synthesize -> cite -> review.</li>
-            <li><code>Data pipeline</code><br>Extract -> validate -> route bad records -> human repair -> write approved records -> audit state.</li>
-            <li><code>Multi-agent team</code><br>Supervisor graph routes to specialist subgraphs for research, coding, review, or customer support.</li>
-            <li><code>Approval workflow</code><br>Use <code>interrupt()</code> before irreversible tools: payment, delete, email, deploy, account changes.</li>
-            <li><code>Long-running job</code><br>Checkpoint every step; resume after failures; inspect state history for audit and debugging.</li>
-          </ul>
-        </div>
-      </article>
-
-      <article id="failure-recovery" class="card span-2">
-        <div class="card-head">
-          <div class="icon red">OPS</div>
-          <div>
-            <h2>Failure Recovery &amp; Reliability</h2>
-            <div class="caption">Design graphs assuming nodes, tools, and users will fail</div>
-          </div>
-        </div>
-        <div class="body">
-          <pre class="language-python"><code class="language-python"># Reliability checklist for every node
-def node(state, config):
-    # 1. Read only the state keys you need.
-    # 2. Validate inputs before side effects.
-    # 3. Make external writes idempotent.
-    # 4. Return partial state updates only.
-    # 5. Store enough metadata for replay/debug.
-    return {"status": "validated"}
-
-# Durable execution needs:
-# - stable thread_id
-# - production checkpointer
-# - retry strategy for transient errors
-# - interrupt before risky writes
-# - state history inspection in support tools</code></pre>
-          <div class="note">
-            <p><b>Best:</b> Keep nodes small, deterministic where possible, and safe to re-run after checkpoint resume.</p>
-            <p class="bad"><b>Mistake:</b> Put non-idempotent external writes before an interrupt or without a stable operation id.</p>
-          </div>
-        </div>
-      </article>
-
-      <article id="state-design" class="card">
-        <div class="card-head">
-          <div class="icon gold">STATE</div>
-          <div>
-            <h2>State Design Best Practices</h2>
-            <div class="caption">Most graph bugs start with unclear state</div>
-          </div>
-        </div>
-        <div class="body">
-          <pre class="language-python"><code class="language-python">from typing import Annotated, TypedDict
-import operator
-from langgraph.graph import MessagesState
-from langgraph.graph.message import add_messages
-
-class ProductionAgentState(TypedDict):
-    messages: Annotated[list, add_messages]
-    user_id: str
-    tenant_id: str
-    plan: list[str]
-    retrieved_source_ids: Annotated[list[str], operator.add]
-    tool_results: Annotated[list[dict], operator.add]
-    approval_required: bool
-    final_answer: str
-
-# Ownership rule:
-# - planner owns plan
-# - retriever owns retrieved_source_ids
-# - tools own tool_results
-# - responder owns final_answer</code></pre>
-          <ul class="mono-list">
-            <li><code>Schema</code><br>Use <code>TypedDict</code> or Pydantic; document which node owns each key.</li>
-            <li><code>Reducers</code><br>Use reducers for append/aggregate keys; otherwise updates overwrite values.</li>
-            <li><code>Messages</code><br>Use <code>MessagesState</code> for chat/tool loops; summarize or trim long histories.</li>
-            <li><code>Context</code><br>Runtime user id, tenant, locale, and request metadata should be context/config, not graph state.</li>
-            <li><code>Audit</code><br>Store decisions, tool ids, source ids, approval payloads, and failure reasons in state.</li>
-            <li><code>Boundaries</code><br>Use subgraphs when teams, schemas, or responsibilities should be isolated.</li>
-          </ul>
-        </div>
-      </article>
-
-      <article id="deployment-playbook" class="card span-3">
-        <div class="card-head">
-          <div class="icon green">DEP</div>
-          <div>
-            <h2>Deployment Playbook</h2>
-            <div class="caption">Moving from notebook graph to maintained service</div>
-          </div>
-        </div>
-        <div class="body">
-          <pre class="language-python"><code class="language-python"># src/agent.py
-from langgraph.checkpoint.postgres import PostgresSaver
-from langgraph.store.postgres import PostgresStore
-
-def build_graph(model, tools, db_uri: str):
-    checkpointer = PostgresSaver.from_conn_string(db_uri)
-    store = PostgresStore.from_conn_string(db_uri)
-
-    builder = StateGraph(ProductionAgentState)
-    builder.add_node("agent", call_model)
-    builder.add_node("tools", ToolNode(tools))
-    builder.add_edge(START, "agent")
-    builder.add_conditional_edges("agent", route_tools)
-    builder.add_edge("tools", "agent")
-    return builder.compile(checkpointer=checkpointer, store=store)
-
-graph = build_graph(model, tools, db_uri=os.environ["DATABASE_URL"])
-
-# langgraph.json
-{
-  "dependencies": ["."],
-  "graphs": {"support_agent": "./src/agent.py:graph"},
-  "env": ".env"
-}</code></pre>
-          <ul class="mono-list">
-            <li><code>Graph factory</code><br>Build graphs in a function; inject model, tools, checkpointer, store, and runtime settings.</li>
-            <li><code>Persistence</code><br>Use durable checkpointers for production. In-memory savers are only for demos and tests.</li>
-            <li><code>Streaming UX</code><br>Use <code>updates</code> for progress, <code>messages</code> for token UI, <code>debug</code> for internal tooling.</li>
-            <li><code>Observability</code><br>Trace node names, state transitions, tool calls, interrupt payloads, latency, retries, and costs.</li>
-            <li><code>Testing</code><br>Unit-test routing functions and nodes; integration-test full graph paths with fixed inputs.</li>
-            <li><code>Versioning</code><br>Version graph topology, prompts, tools, state schema, and migration logic for old checkpoints.</li>
-          </ul>
         </div>
       </article>
 
@@ -1588,7 +1145,7 @@ graph = builder.compile()</code></pre>
         </div>
       </article>
 
-      <article id="node-control" class="card span-2">
+      <article id="node-control" class="card span-3">
         <div class="card-head">
           <div class="icon red">CTL</div>
           <div>
@@ -1597,173 +1154,18 @@ graph = builder.compile()</code></pre>
           </div>
         </div>
         <div class="body">
-          <pre class="language-python"><code class="language-python">from langgraph.types import CachePolicy, RetryPolicy
+          <pre class="language-python"><code class="language-python">from langgraph.prebuilt import ToolNode
 
-def expensive_retrieval(state):
-    return {"docs": retriever.invoke(state["query"])}
-
-def flaky_external_api(state):
-    return {"crm": crm_client.lookup(state["customer_id"])}
-
-def final_audit_write(state):
-    audit_log.write(state)
-    return {"audit_written": True}
-
+# Cấu hình retry policy tự động tại ranh giới node để tăng tính chịu lỗi
 builder.add_node(
-    "retrieve",
-    expensive_retrieval,
-    cache_policy=CachePolicy(ttl=300),
-)
-builder.add_node(
-    "crm_lookup",
-    flaky_external_api,
-    retry_policy=RetryPolicy(max_attempts=3),
-)
-builder.add_node(
-    "audit",
-    final_audit_write,
-    defer=True,
+    "tools", 
+    ToolNode(tools), 
+    retry=dict(
+        retry_on=Exception,
+        max_attempts=3,
+        backoff_factor=2
+    )
 )</code></pre>
-          <ul class="mono-list">
-            <li><code>retry_policy</code><br>Use for transient model/API/network errors, not validation or permission failures.</li>
-            <li><code>cache_policy</code><br>Cache deterministic expensive nodes such as retrieval, classification, or normalization.</li>
-            <li><code>defer=True</code><br>Run a node near graph end, useful for audit writes, cleanup, or final notifications.</li>
-            <li><code>idempotency</code><br>External writes need stable operation ids so retries and resumes do not duplicate actions.</li>
-          </ul>
-        </div>
-      </article>
-
-      <article id="runtime-stream-control" class="card">
-        <div class="card-head">
-          <div class="icon gold">RUN</div>
-          <div>
-            <h2>Runtime Context, Recursion &amp; Custom Streams</h2>
-            <div class="caption">Pass request-scoped context, stop runaway loops, and stream domain events</div>
-          </div>
-        </div>
-        <div class="body">
-          <pre class="language-python"><code class="language-python">from typing import TypedDict
-from langgraph.config import get_stream_writer
-from langgraph.runtime import Runtime
-
-class State(TypedDict):
-    query: str
-    docs: list[str]
-
-class Context(TypedDict):
-    user_id: str
-    tenant_id: str
-    locale: str
-
-def search_node(state, runtime: Runtime[Context]):
-    writer = get_stream_writer()
-    writer({"phase": "search", "tenant": runtime.context["tenant_id"]})
-    tenant_retriever = retriever_for_tenant(runtime.context["tenant_id"])
-    docs = tenant_retriever.invoke(state["query"])
-    return {"docs": docs}
-
-builder = StateGraph(State, context_schema=Context)
-builder.add_node("search", search_node)
-graph = builder.compile(checkpointer=checkpointer)
-
-for event in graph.stream(
-    {"query": "refund policy"},
-    {
-        "configurable": {"thread_id": "u-42"},
-        "recursion_limit": 50,
-    },
-    context={"user_id": "42", "tenant_id": "acme", "locale": "en"},
-    stream_mode="custom",
-):
-    print(event)</code></pre>
-          <ul class="mono-list">
-            <li><code>context_schema</code><br>Runtime context for user, tenant, locale, request id, feature flags, or model policy.</li>
-            <li><code>recursion_limit</code><br>Protect agent loops and conditional cycles from running forever.</li>
-            <li><code>get_stream_writer</code><br>Emit custom progress events for UI, logs, or human-review panels.</li>
-            <li><code>stream_mode</code><br>Use <code>updates</code>, <code>values</code>, <code>messages</code>, <code>debug</code>, or <code>custom</code> for different UX needs.</li>
-          </ul>
-        </div>
-      </article>
-
-      <article id="subgraph-migration" class="card span-3">
-        <div class="card-head">
-          <div class="icon green">MIG</div>
-          <div>
-            <h2>Subgraph Persistence &amp; Graph Migrations</h2>
-            <div class="caption">How to evolve orchestration without breaking long-running threads</div>
-          </div>
-        </div>
-        <div class="body">
-          <pre class="language-python"><code class="language-python"># Subgraph with shared state keys
-class ParentState(TypedDict):
-    question: str
-    research_notes: list[str]
-    final_answer: str
-
-class ResearchState(TypedDict):
-    question: str
-    research_notes: list[str]
-
-research_builder = StateGraph(ResearchState)
-research_builder.add_node("search", search_node)
-research_builder.add_node("summarize", summarize_node)
-research_builder.add_edge(START, "search")
-research_builder.add_edge("search", "summarize")
-research_builder.add_edge("summarize", END)
-research_graph = research_builder.compile()
-
-parent = StateGraph(ParentState)
-parent.add_node("research", research_graph)
-parent.add_node("write_answer", write_answer)
-parent.add_edge(START, "research")
-parent.add_edge("research", "write_answer")
-parent.add_edge("write_answer", END)
-graph = parent.compile(checkpointer=checkpointer)
-
-# Migration rule of thumb:
-# - Additive state keys are safest.
-# - Renaming/removing keys needs migration code.
-# - Keep node names stable for interrupted/checkpointed runs.</code></pre>
-          <ul class="mono-list">
-            <li><code>Shared persistence</code><br>Parent checkpointer can persist subgraph execution when subgraphs run as nodes.</li>
-            <li><code>Isolated ownership</code><br>Use subgraphs for teams or steps with their own schema, evals, and release cadence.</li>
-            <li><code>Schema migration</code><br>Add keys safely; migrate or backfill renamed keys before resuming old threads.</li>
-            <li><code>Checkpoint compatibility</code><br>Changing node names, interrupt points, or routing labels can affect paused runs.</li>
-          </ul>
-        </div>
-      </article>
-
-      <article id="patterns" class="card span-3">
-        <div class="card-head">
-          <div class="icon green">MAP</div>
-          <div>
-            <h2>Quick Decision Map</h2>
-            <div class="caption">Pick the right LangGraph component</div>
-          </div>
-        </div>
-        <div class="body">
-          <ul class="mono-list">
-            <li><code>StateGraph</code><br>Workflow with multiple nodes, shared state, and explicit routing.</li>
-            <li><code>MessagesState</code><br>Chat/tool-calling graph has message history.</li>
-            <li><code>Reducer</code><br>Multiple nodes or branches update the same key, or you need append semantics.</li>
-            <li><code>Conditional edges</code><br>Routing based on state after a node finishes.</li>
-            <li><code>Command</code><br>A node updates state and chooses the next node.</li>
-            <li><code>Send</code><br>Dynamic fan-out for map-reduce or parallel work.</li>
-            <li><code>Checkpointer</code><br>Resume, memory by thread, interrupts, time travel.</li>
-            <li><code>Store</code><br>Long-term memory across threads.</li>
-            <li><code>Interrupt</code><br>Human approval/input before risky steps.</li>
-            <li><code>ToolNode</code><br>Execute tool calls correctly inside an agent loop.</li>
-            <li><code>Functional API</code><br>Imperative, linear workflows with little graph topology.</li>
-            <li><code>Subgraph</code><br>Package sub-workflows, teams, or child agents with separate schemas.</li>
-            <li><code>input_schema / output_schema</code><br>Expose clean public API while keeping internal graph state private.</li>
-            <li><code>context_schema</code><br>Pass request-scoped user, tenant, locale, and feature flags without polluting state.</li>
-            <li><code>RetryPolicy</code><br>Retry transient node failures such as provider timeouts or flaky external APIs.</li>
-            <li><code>CachePolicy</code><br>Cache deterministic expensive nodes such as retrieval, normalization, and classification.</li>
-            <li><code>defer=True</code><br>Run cleanup, audit, or notification nodes near graph completion.</li>
-            <li><code>recursion_limit</code><br>Protect loops and agent routes from runaway execution.</li>
-            <li><code>custom stream writer</code><br>Emit domain progress events to UI while the graph runs.</li>
-            <li><code>graph migrations</code><br>Evolve state schema and topology carefully for checkpointed threads.</li>
-          </ul>
         </div>
       </article>
     </section>
@@ -1771,15 +1173,12 @@ graph = parent.compile(checkpointer=checkpointer)
     <footer class="footer">
       <div>
         LangGraph Cheatsheet - Core Components Reference.
-        Compiled from official LangGraph docs, checked on 2026-06-30.
+        Source material was checked against official docs on 2026-06-30.
       </div>
       <span>
-        <a href="https://docs.langchain.com/oss/python/langgraph/overview">overview</a>
-        · <a href="https://docs.langchain.com/oss/python/langgraph/graph-api">graph api</a>
-        · <a href="https://docs.langchain.com/oss/python/langgraph/functional-api">functional api</a>
-        · <a href="https://docs.langchain.com/oss/python/langgraph/persistence">persistence</a>
-        · <a href="https://docs.langchain.com/oss/python/langgraph/streaming">streaming</a>
-        · <a href="https://reference.langchain.com/python/langgraph/">reference</a>
+        <a href="https://docs.langchain.com/oss/python/langgraph/overview">langgraph docs</a>
+        · <a href="https://reference.langchain.com/python/">python reference</a>
+        · <code>pip install -U langgraph</code>
       </span>
     </footer>
   </main>
