@@ -297,6 +297,10 @@
         <a class="chip" href="#prebuilt">Prebuilt Agents</a>
         <a class="chip" href="#schemas-private-state">Schemas</a>
         <a class="chip" href="#node-control">Node Control</a>
+        <a class="chip" href="#api-map">API Map</a>
+        <a class="chip" href="#runtime-config">Runtime</a>
+        <a class="chip" href="#compiled-methods">Graph Methods</a>
+        <a class="chip" href="#functional-api">Functional API</a>
       </nav>
     </header>
 
@@ -326,7 +330,7 @@ pip install -U langchain-openai
 # Checkpointers persist execution.</code></pre>
           <div class="note">
             <p><b>Best:</b> Use LangGraph when you need clearer state and control flow than a simple chain or agent.</p>
-            <p class="bad"><b>Mistake:</b> Build a custom graph when <code>create_agent</code> is already enough.</p>
+            <p class="bad"><b>Mistake:</b> Build a custom graph when LangGraph's <code>create_react_agent</code> already fits.</p>
           </div>
         </div>
       </article>
@@ -340,8 +344,8 @@ pip install -U langchain-openai
           </div>
         </div>
         <div class="body">
-          <pre class="language-python"><code class="language-python">from langchain.chat_models import init_chat_model
-from langchain.tools import tool
+          <pre class="language-python"><code class="language-python">from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt import create_react_agent
 
@@ -355,7 +359,7 @@ def create_ticket(title: str, severity: str) -> str:
     """Use only after the user confirms ticket creation."""
     return f"ticket created: {title} / {severity}"
 
-model = init_chat_model("openai:gpt-4o", temperature=0)
+model = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
 checkpointer = InMemorySaver()
 
 agent = create_react_agent(
@@ -392,8 +396,8 @@ async def run_agent():
         </div>
         <div class="body">
           <pre class="language-python"><code class="language-python">from typing import Literal
-from langchain.chat_models import init_chat_model
-from langchain.tools import tool
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
 from langgraph.graph import MessagesState, StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 
@@ -403,7 +407,7 @@ def lookup_order(order_id: str) -> str:
     return "shipped"
 
 tools = [lookup_order]
-model = init_chat_model("openai:gpt-4o", temperature=0).bind_tools(tools)
+model = ChatOpenAI(model="gpt-4.1-mini", temperature=0).bind_tools(tools)
 
 # Async node function
 async def call_model(state: MessagesState):
@@ -485,7 +489,7 @@ result = graph.invoke({"topic": "graphs"})</code></pre>
           </div>
           <pre class="language-python"><code class="language-python">from typing import Annotated, TypedDict
 import operator
-from langgraph.graph.message import add_messages
+from langgraph.graph import add_messages
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
@@ -520,9 +524,9 @@ def add_result(state: State):
             <div class="fact"><b>Signature</b> <code>node(state, config=None, runtime=None)</code></div>
             <div class="fact"><b>Return</b> Dict partial state, <code>Command</code>, or interrupt flow.</div>
           </div>
-          <pre class="language-python"><code class="language-python">from langchain.chat_models import init_chat_model
+          <pre class="language-python"><code class="language-python">from langchain_openai import ChatOpenAI
 
-model = init_chat_model("openai:gpt-4o")
+model = ChatOpenAI(model="gpt-4.1-mini")
 
 async def call_model(state: State):
     response = await model.ainvoke(state["messages"])
@@ -700,7 +704,7 @@ await graph.ainvoke({
             <div class="fact"><b>Import</b> <code>from langgraph.prebuilt import ToolNode, tools_condition</code></div>
             <div class="fact"><b>Methods</b> Use as a graph node: <code>builder.add_node("tools", ToolNode(tools))</code></div>
           </div>
-          <pre class="language-python"><code class="language-python">from langchain.tools import tool
+          <pre class="language-python"><code class="language-python">from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode, tools_condition
 
 @tool
@@ -907,6 +911,55 @@ async def run_stream():
         </div>
       </article>
 
+      <article id="interrupt-rules" class="card">
+        <div class="card-head">
+          <div class="icon red">IR</div>
+          <div>
+            <h2>Interrupt Rules</h2>
+            <div class="caption">Keep resume behavior deterministic and side effects safe</div>
+          </div>
+        </div>
+        <div class="body">
+          <ul class="mono-list">
+            <li><code>Before side effects</code><br>Pause before payment, email, delete, ticket creation, or external write.</li>
+            <li><code>Stable order</code><br>Do not reorder interrupt calls inside a node after checkpoints already exist.</li>
+            <li><code>No broad catch</code><br>Do not swallow interrupt exceptions with a broad <code>try/except Exception</code>.</li>
+            <li><code>Idempotency</code><br>External writes after resume need idempotency keys because nodes can be retried.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article id="event-debugging" class="card span-2">
+        <div class="card-head">
+          <div class="icon blue">DBG</div>
+          <div>
+            <h2>Streaming Events &amp; State Debugging</h2>
+            <div class="caption">Use event streams plus state inspection for production debugging</div>
+          </div>
+        </div>
+        <div class="body">
+          <pre class="language-python"><code class="language-python">config = {"configurable": {"thread_id": "support-42"}}
+
+# Event stream is useful for tracing node starts/ends and custom events.
+async for event in graph.astream_events(
+    {"messages": [("user", "Track this order")]},
+    config=config,
+    version="v3",
+):
+    if event["event"].endswith("_end"):
+        print(event["name"], event.get("data", {}))
+
+# Inspect or patch checkpointed state during debugging/admin workflows.
+snapshot = await graph.aget_state(config)
+print(snapshot.next, snapshot.values)
+
+await graph.aupdate_state(
+    config,
+    {"messages": [("system", "Escalated by support supervisor.")]},
+)</code></pre>
+        </div>
+      </article>
+
       <article id="fastapi" class="card span-2">
         <div class="card-head">
           <div class="icon blue">API</div>
@@ -980,15 +1033,15 @@ def test_route_tools_condition():
           </div>
         </div>
         <div class="body">
-          <pre class="language-python"><code class="language-python">from langchain.chat_models import init_chat_model
+          <pre class="language-python"><code class="language-python">from langchain_openai import ChatOpenAI
 
 async def route_by_complexity_node(state: MessagesState):
-    cheap_model = init_chat_model("openai:gpt-4o-mini")
+    cheap_model = ChatOpenAI(model="gpt-4.1-mini")
     res = await cheap_model.ainvoke(state["messages"])
     
     # Nếu câu trả lời chứa từ khóa không chắc chắn, chuyển hướng lên model o1
     if "unable to answer" in res.content.lower() or "complex query" in res.content.lower():
-        premium_model = init_chat_model("openai:o1")
+        premium_model = ChatOpenAI(model="gpt-4.1")
         upgrade_res = await premium_model.ainvoke(state["messages"])
         return {"messages": [upgrade_res]}
         
@@ -1054,16 +1107,16 @@ parent.add_edge("finalize", END)</code></pre>
             <div class="fact"><b>Import</b> <code>from langgraph.prebuilt import create_react_agent</code></div>
             <div class="fact"><b>Methods</b> <code>invoke</code>, <code>stream</code>, and <code>get_state</code> when compiled with a checkpointer.</div>
           </div>
-          <pre class="language-python"><code class="language-python">from langgraph.prebuilt import create_react_agent
-from langchain.chat_models import init_chat_model
-from langchain.tools import tool
+          <pre class="language-python"><code class="language-python">from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
+from langgraph.prebuilt import create_react_agent
 
 @tool
 def search(query: str) -> str:
     """Search trusted docs."""
     return "LangGraph supports durable state."
 
-model = init_chat_model("openai:gpt-4o")
+model = ChatOpenAI(model="gpt-4.1-mini")
 agent = create_react_agent(
     model=model,
     tools=[search],
@@ -1155,17 +1208,276 @@ graph = builder.compile()</code></pre>
         </div>
         <div class="body">
           <pre class="language-python"><code class="language-python">from langgraph.prebuilt import ToolNode
+from langgraph.types import CachePolicy, RetryPolicy
 
-# Cấu hình retry policy tự động tại ranh giới node để tăng tính chịu lỗi
 builder.add_node(
-    "tools", 
-    ToolNode(tools), 
-    retry=dict(
-        retry_on=Exception,
-        max_attempts=3,
-        backoff_factor=2
-    )
+    "tools",
+    ToolNode(tools),
+    # retry_policy: retry transient tool/model errors at node boundary.
+    retry_policy=RetryPolicy(max_attempts=3),
+    # cache_policy: reuse deterministic node outputs for the given TTL.
+    cache_policy=CachePolicy(ttl=120),
 )</code></pre>
+        </div>
+      </article>
+
+      <article id="api-map" class="card span-3">
+        <div class="card-head">
+          <div class="icon blue">API</div>
+          <div>
+            <h2>LangGraph API Map</h2>
+            <div class="caption">What comes after langgraph.* and when to use each namespace</div>
+          </div>
+        </div>
+        <div class="body">
+          <table>
+            <thead>
+              <tr><th>Namespace</th><th>Main APIs</th><th>Use it for</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>langgraph.graph</code></td><td><code>StateGraph</code>, <code>START</code>, <code>END</code>, <code>MessagesState</code>, <code>add_messages</code></td><td>Define graph topology, typed state, reducers, and entry/finish points.</td></tr>
+              <tr><td><code>langgraph.types</code></td><td><code>Command</code>, <code>Send</code>, <code>interrupt</code>, <code>RetryPolicy</code>, <code>CachePolicy</code></td><td>Route dynamically, fan out work, pause/resume, and control node reliability.</td></tr>
+              <tr><td><code>langgraph.prebuilt</code></td><td><code>create_react_agent</code>, <code>ToolNode</code>, <code>tools_condition</code>, <code>InjectedState</code>, <code>InjectedStore</code></td><td>Use ready-made agent/tool nodes before writing custom control flow.</td></tr>
+              <tr><td><code>langgraph.runtime</code></td><td><code>Runtime</code></td><td>Pass immutable per-run context, stores, and stream writers into nodes.</td></tr>
+              <tr><td><code>langgraph.func</code></td><td><code>@entrypoint</code>, <code>@task</code></td><td>Functional API for workflow-style orchestration without manually building a graph.</td></tr>
+              <tr><td><code>langgraph.checkpoint.*</code></td><td><code>InMemorySaver</code>, <code>PostgresSaver</code>, <code>AsyncPostgresSaver</code></td><td>Persist thread state for resume, interrupts, time travel, and durable execution.</td></tr>
+              <tr><td><code>langgraph.store.*</code></td><td><code>InMemoryStore</code>, persistent store integrations</td><td>Long-term cross-thread memory such as user facts and preferences.</td></tr>
+              <tr><td><code>langgraph.channels</code></td><td><code>LastValue</code>, <code>Topic</code>, <code>BinaryOperatorAggregate</code></td><td>Advanced state channel behavior beyond simple TypedDict reducers.</td></tr>
+              <tr><td><code>langgraph.config</code></td><td><code>get_stream_writer</code></td><td>Emit custom stream events from inside nodes or tools.</td></tr>
+              <tr><td><code>langgraph.errors</code></td><td>Graph runtime exceptions</td><td>Catch and classify graph recursion, interrupt, checkpoint, or configuration failures.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article id="function-signatures" class="card span-3">
+        <div class="card-head">
+          <div class="icon green">SIG</div>
+          <div>
+            <h2>Function Signatures</h2>
+            <div class="caption">What each node receives, what to pass, and why</div>
+          </div>
+        </div>
+        <div class="body">
+          <pre class="language-python"><code class="language-python">from typing import TypedDict
+from langchain_openai import ChatOpenAI
+from langgraph.graph import StateGraph, START, END
+from langgraph.runtime import Runtime
+
+class SupportContext(TypedDict):
+    """Immutable per-run context.
+
+    tenant_id: Which tenant owns this request.
+    user_id: Authenticated user id for audit, retrieval filters, and store namespace.
+    locale: UI/answer language preference.
+    """
+    tenant_id: str
+    user_id: str
+    locale: str
+
+class SupportState(TypedDict):
+    """Mutable graph state shared across nodes.
+
+    question: User request entering the graph.
+    context: Retrieved snippets safe to show the model.
+    answer: Final answer returned by the graph.
+    """
+    question: str
+    context: list[str]
+    answer: str
+
+model = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
+# vector_store: LangChain VectorStore created by your ingestion pipeline.
+# It is captured by the node closure and filtered per tenant at runtime.
+
+async def retrieve(state: SupportState, runtime: Runtime[SupportContext]) -> dict:
+    """Node input: current state + runtime context.
+
+    Pass tenant/user through runtime.context because it is request metadata,
+    not mutable graph state. Return only changed state keys.
+    """
+    tenant_id = runtime.context["tenant_id"]
+    tenant_retriever = vector_store.as_retriever(
+        search_kwargs={"k": 4, "filter": {"tenant_id": tenant_id}}
+    )
+    docs = await tenant_retriever.ainvoke(state["question"])
+    return {"context": [doc.page_content for doc in docs]}
+
+async def answer(state: SupportState, runtime: Runtime[SupportContext]) -> dict:
+    """Node output: partial state update.
+
+    The graph merges {"answer": ...} into SupportState.
+    """
+    prompt = f"Answer in {runtime.context['locale']} from:\n{state['context']}"
+    response = await model.ainvoke(prompt)
+    return {"answer": response.content}
+
+builder = StateGraph(SupportState, context_schema=SupportContext)
+builder.add_node("retrieve", retrieve)
+builder.add_node("answer", answer)
+builder.add_edge(START, "retrieve")
+builder.add_edge("retrieve", "answer")
+builder.add_edge("answer", END)
+graph = builder.compile()
+
+result = await graph.ainvoke(
+    {"question": "How do refunds work?", "context": [], "answer": ""},
+    context={"tenant_id": "acme", "user_id": "u-42", "locale": "vi"},
+)</code></pre>
+        </div>
+      </article>
+
+      <article id="runtime-config" class="card span-3">
+        <div class="card-head">
+          <div class="icon blue">RUN</div>
+          <div>
+            <h2>Runtime, Config &amp; Messages</h2>
+            <div class="caption">Thread id, per-run context, message state, and stream metadata</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>State</b> Mutable data the graph owns and checkpoints.</div>
+            <div class="fact"><b>Context</b> Immutable runtime data such as tenant, user, auth scope, locale.</div>
+            <div class="fact"><b>Config</b> Invocation metadata; <code>configurable.thread_id</code> selects checkpoint thread.</div>
+            <div class="fact"><b>Messages</b> Chat history usually lives under <code>messages</code> with <code>add_messages</code> reducer.</div>
+          </div>
+          <pre class="language-python"><code class="language-python">from typing import Annotated, TypedDict
+from langchain_core.messages import AnyMessage
+from langgraph.graph import StateGraph, add_messages
+from langgraph.runtime import Runtime
+
+class ChatState(TypedDict):
+    """State persisted by the checkpointer.
+
+    messages: Chat history; add_messages appends new messages instead of overwriting.
+    route: Last router decision for debugging and tests.
+    """
+    messages: Annotated[list[AnyMessage], add_messages]
+    route: str
+
+class RunContext(TypedDict):
+    """Runtime-only context.
+
+    tenant_id: Used by retrievers/tools for filtering.
+    plan: Billing or routing tier for model selection.
+    """
+    tenant_id: str
+    plan: str
+
+async def model_node(state: ChatState, runtime: Runtime[RunContext]) -> dict:
+    """Read messages from state and tenant metadata from runtime.context."""
+    selected_model = premium_model if runtime.context["plan"] == "pro" else basic_model
+    response = await selected_model.ainvoke(state["messages"])
+    return {"messages": [response], "route": runtime.context["plan"]}
+
+config = {"configurable": {"thread_id": "tenant-acme:user-42"}}
+context = {"tenant_id": "acme", "plan": "pro"}
+
+await graph.ainvoke(
+    {"messages": [("user", "Summarize my last order")], "route": ""},
+    config=config,
+    context=context,
+)</code></pre>
+        </div>
+      </article>
+
+      <article id="compiled-methods" class="card span-3">
+        <div class="card-head">
+          <div class="icon gold">CG</div>
+          <div>
+            <h2>Compiled Graph Methods</h2>
+            <div class="caption">How to call, stream, inspect, and mutate a compiled graph</div>
+          </div>
+        </div>
+        <div class="body">
+          <ul class="mono-list">
+            <li><code>invoke(input, config=None, context=None)</code><br>Run synchronously and return the final state/output.</li>
+            <li><code>ainvoke(input, config=None, context=None)</code><br>Async run for FastAPI, workers, and async model/retriever/tool calls.</li>
+            <li><code>stream(input, stream_mode=...)</code><br>Sync iterator for values, updates, messages, debug, or custom chunks.</li>
+            <li><code>astream(input, stream_mode=...)</code><br>Async stream for chat UIs and progress views.</li>
+            <li><code>astream_events(input, version="v3")</code><br>Low-level event stream for tracing node starts/ends and custom events.</li>
+            <li><code>get_state(config)</code><br>Read checkpoint snapshot for a thread; requires checkpointer.</li>
+            <li><code>update_state(config, values)</code><br>Patch checkpointed state for admin fixes, human review, or time-travel workflows.</li>
+            <li><code>get_state_history(config)</code><br>Inspect previous checkpoints to debug how state evolved.</li>
+          </ul>
+          <pre class="language-python"><code class="language-python">config = {"configurable": {"thread_id": "support-42"}}
+
+final_state = await graph.ainvoke(input_state, config=config, context=context)
+
+async for update in graph.astream(input_state, config=config, stream_mode="updates"):
+    print("node update:", update)
+
+snapshot = await graph.aget_state(config)
+print("next nodes:", snapshot.next)
+print("state values:", snapshot.values)
+
+await graph.aupdate_state(config, {"route": "manual_review"})</code></pre>
+        </div>
+      </article>
+
+      <article id="functional-api" class="card span-2">
+        <div class="card-head">
+          <div class="icon green">FN</div>
+          <div>
+            <h2>Functional API</h2>
+            <div class="caption">Use @entrypoint and @task when a workflow reads cleaner than graph wiring</div>
+          </div>
+        </div>
+        <div class="body">
+          <pre class="language-python"><code class="language-python">from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.func import entrypoint, task
+
+checkpointer = InMemorySaver()
+
+@task
+async def retrieve_docs(question: str, tenant_id: str) -> list[str]:
+    """Task input: question + tenant.
+
+    Use @task for a resumable, retryable unit of work inside an entrypoint.
+    """
+    tenant_retriever = vector_store.as_retriever(
+        search_kwargs={"filter": {"tenant_id": tenant_id}}
+    )
+    docs = await tenant_retriever.ainvoke(question)
+    return [doc.page_content for doc in docs]
+
+@entrypoint(checkpointer=checkpointer)
+async def support_workflow(payload: dict) -> dict:
+    """Entrypoint input: serializable request payload.
+
+    payload["question"]: User question.
+    payload["tenant_id"]: Access-control boundary for retrieval.
+    """
+    context = await retrieve_docs(payload["question"], payload["tenant_id"])
+    return {"context": context}
+
+result = await support_workflow.ainvoke(
+    {"question": "Refund policy?", "tenant_id": "acme"},
+    config={"configurable": {"thread_id": "support-fn-1"}},
+)</code></pre>
+        </div>
+      </article>
+
+      <article id="keywords" class="card span-3">
+        <div class="card-head">
+          <div class="icon gold">KEY</div>
+          <div>
+            <h2>Keywords</h2>
+            <div class="caption">Core LangGraph terms and how they map to agent execution</div>
+          </div>
+        </div>
+        <div class="body">
+          <ul class="mono-list">
+            <li><code>StateGraph</code><br>Graph builder where each node reads/writes typed shared state.</li>
+            <li><code>Node</code><br>Function or runnable that returns partial state updates, commands, or interrupts.</li>
+            <li><code>Edge</code><br>Static or conditional transition deciding the next node.</li>
+            <li><code>Reducer</code><br>Merge rule for state keys updated by multiple nodes or parallel branches.</li>
+            <li><code>Command</code><br>Return value that can update state and route with <code>goto</code> in one step.</li>
+            <li><code>Send</code><br>Dynamic fan-out primitive for map-reduce and parallel branch creation.</li>
+            <li><code>Checkpointer</code><br>Durable thread state store required for resume, time travel, and interrupts.</li>
+            <li><code>ToolNode</code><br>Prebuilt LangGraph node that executes model tool calls and returns ToolMessages.</li>
+          </ul>
         </div>
       </article>
     </section>
@@ -1173,7 +1485,7 @@ builder.add_node(
     <footer class="footer">
       <div>
         LangGraph Cheatsheet - Core Components Reference.
-        Source material was checked against official docs on 2026-06-30.
+        Source material was checked against official docs on 2026-07-01.
       </div>
       <span>
         <a href="https://docs.langchain.com/oss/python/langgraph/overview">langgraph docs</a>
