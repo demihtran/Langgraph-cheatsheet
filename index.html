@@ -589,7 +589,7 @@ builder.add_edge("tools", "model")</code></pre>
         <div class="body">
           <div class="mini">
             <div class="fact"><b>Command</b> A node can update state and choose <code>goto</code> in one return value.</div>
-            <li><code>Send</code><br>Dynamic fan-out for map-reduce or parallel work.</li>
+            <div class="fact"><b>Send</b> Dynamic fan-out for map-reduce or parallel work.</div>
             <div class="fact"><b>Import</b> <code>from langgraph.types import Command, Send</code></div>
             <div class="fact"><b>Use when</b> Dynamic routing, parallel per-item processing, subgraph navigation.</div>
           </div>
@@ -695,7 +695,7 @@ await graph.ainvoke({
         </div>
         <div class="body">
           <div class="mini">
-            <div class="fact"><b>Concept</b> Node run tool calls from AIMessage and return ToolMessages into state.</div>
+            <div class="fact"><b>Concept</b> Node runs tool calls from AIMessage and returns ToolMessages into state.</div>
             <div class="fact"><b>Use when</b> ReAct/tool-calling agents where you do not want to parse tool calls manually.</div>
             <div class="fact"><b>Import</b> <code>from langgraph.prebuilt import ToolNode, tools_condition</code></div>
             <div class="fact"><b>Methods</b> Use as a graph node: <code>builder.add_node("tools", ToolNode(tools))</code></div>
@@ -721,7 +721,7 @@ builder.add_conditional_edges("chatbot", tools_condition)
 builder.add_edge("tools", "chatbot")</code></pre>
           <div class="note">
             <p><b>Best:</b> Use clear tool schemas and control side effects with interrupts when needed.</p>
-            <li><code>ToolNode</code><br>Execute tool calls correctly inside an agent loop.</li>
+            <p><b>Why:</b> Execute tool calls correctly inside an agent loop and return tool results as messages.</p>
           </div>
         </div>
       </article>
