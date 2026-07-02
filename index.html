@@ -454,25 +454,31 @@ result = agent.invoke({"messages": [
           <div class="icon gold">MAP</div>
           <div>
             <h2>Thinking In LangGraph</h2>
-            <div class="caption">Beginner-first path from business process to graph design</div>
+            <div class="caption">Cách biến workflow thực tế thành state, nodes và edges</div>
           </div>
         </div>
         <div class="body">
           <table>
             <thead>
-              <tr><th>Step</th><th>Question</th><th>LangGraph artifact</th></tr>
+              <tr><th>Câu hỏi thiết kế</th><th>Biến thành gì trong LangGraph?</th></tr>
             </thead>
             <tbody>
-              <tr><td>1. Map workflow</td><td>What discrete steps happen in the real process?</td><td>Each step becomes a node.</td></tr>
-              <tr><td>2. Classify steps</td><td>Is this LLM reasoning, data retrieval, external action, or user input?</td><td>Node body, retry policy, interrupt point.</td></tr>
-              <tr><td>3. Design state</td><td>What must persist across steps or resume after failure?</td><td>Typed state keys and reducers.</td></tr>
-              <tr><td>4. Wire control flow</td><td>Which path comes next, and who decides?</td><td>Edges, conditional edges, or <code>Command(goto=...)</code>.</td></tr>
-              <tr><td>5. Add production controls</td><td>Where can it fail, pause, stream, or need inspection?</td><td>Checkpointer, Store, interrupts, tracing, tests.</td></tr>
+              <tr><td>Workflow có những bước nào?</td><td>Mỗi bước thường là một <code>node</code>.</td></tr>
+              <tr><td>Dữ liệu nào cần giữ qua các bước?</td><td>Đưa vào <code>state</code>.</td></tr>
+              <tr><td>Sau mỗi bước đi đâu tiếp?</td><td>Dùng <code>edge</code> hoặc <code>conditional edge</code>.</td></tr>
+              <tr><td>Bước nào gọi LLM, tool, API hoặc retriever?</td><td>Viết logic đó bên trong node.</td></tr>
+              <tr><td>Có cần nhớ, tạm dừng hoặc chạy tiếp không?</td><td>Thêm <code>checkpointer</code> hoặc <code>interrupt</code>.</td></tr>
             </tbody>
           </table>
+          <pre class="language-bash"><code class="language-bash">Ví dụ: trả lời câu hỏi dựa trên tài liệu
+
+Nhận câu hỏi     → state["question"]
+Tìm tài liệu     → node retrieve
+Tạo câu trả lời  → node answer
+Trả kết quả      → END</code></pre>
           <div class="note">
-            <p><b>Rule:</b> Keep state as raw durable data; format prompts inside nodes when the model needs them.</p>
-            <p><b>Granularity:</b> split external APIs, LLM calls, and side effects into separate nodes when you need retries, visibility, or resume boundaries.</p>
+            <p><b>Cách nghĩ:</b> đừng bắt đầu từ code; hãy bắt đầu bằng việc liệt kê workflow thật ngoài đời.</p>
+            <p><b>Ghi nhớ:</b> Workflow thật → <code>State</code> + <code>Nodes</code> + <code>Edges</code>.</p>
           </div>
         </div>
       </article>
