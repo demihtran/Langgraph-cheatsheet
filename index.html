@@ -667,15 +667,15 @@ result = graph.invoke({
           <div class="icon gold">ST</div>
           <div>
             <h2>State &amp; Reducers</h2>
-            <div class="caption">Shared data and merge behavior</div>
+            <div class="caption">State là dữ liệu chung; reducer là quy tắc merge update</div>
           </div>
         </div>
         <div class="body">
           <div class="mini">
-            <div class="fact"><b>Concept</b> State is the data each graph node reads and writes; reducers decide how updates merge.</div>
-            <div class="fact"><b>Use when</b> Append messages, aggregate results, parallel branches.</div>
-            <div class="fact"><b>Import</b> <code>Annotated</code>, <code>add_messages</code>, <code>operator.add</code></div>
-            <div class="fact"><b>Default</b> Without a reducer, updates overwrite the current key.</div>
+            <div class="fact"><b>State</b> Dữ liệu chung mà các node đọc và trả update để thay đổi.</div>
+            <div class="fact"><b>Reducer</b> Quy tắc merge update mới vào state cũ cho từng key.</div>
+            <div class="fact"><b>Mặc định</b> Không có reducer thì update mới sẽ ghi đè giá trị cũ.</div>
+            <div class="fact"><b>Dùng khi</b> Cần append messages, gom search results, hoặc nhiều branch cùng update một key.</div>
           </div>
           <pre class="language-python"><code class="language-python">from typing import Annotated, TypedDict
 import operator
@@ -686,15 +686,24 @@ class State(TypedDict):
     search_results: Annotated[list[str], operator.add]
     user_id: str
 
-def add_result(state: State):
+def retrieve(state: State):
     return {"search_results": ["doc-1"]}
 
-# messages append intelligently;
-# search_results list concatenates;
-# user_id overwrites if returned.</code></pre>
+def remember_user(state: State):
+    return {"user_id": "u-42"}</code></pre>
+          <table>
+            <thead>
+              <tr><th>Key</th><th>Merge behavior</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>messages</code></td><td><code>add_messages</code> append/merge lịch sử chat.</td></tr>
+              <tr><td><code>search_results</code></td><td><code>operator.add</code> nối list kết quả.</td></tr>
+              <tr><td><code>user_id</code></td><td>Không reducer → ghi đè khi node trả key này.</td></tr>
+            </tbody>
+          </table>
           <div class="note">
-            <p><b>Best:</b> Add reducers for keys that multiple nodes or branches update in parallel.</p>
-            <p class="bad"><b>Mistake:</b> Let a list be overwritten when you intended append semantics, or use a non-deterministic reducer.</p>
+            <p><b>Ghi nhớ:</b> node chỉ trả phần state muốn cập nhật, không cần trả toàn bộ state.</p>
+            <p class="bad"><b>Lỗi hay gặp:</b> quên reducer cho list nên update mới ghi đè mất dữ liệu cũ.</p>
           </div>
         </div>
       </article>
