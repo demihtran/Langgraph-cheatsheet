@@ -158,7 +158,8 @@
     }
     .overview-compact,
     .agent-compact,
-    .lifecycle-compact {
+    .lifecycle-compact,
+    .loop-compact {
       display: grid;
       grid-template-columns: 1.1fr 1.4fr;
       gap: 12px;
@@ -166,7 +167,8 @@
     }
     .overview-compact .mini,
     .agent-compact .mini,
-    .lifecycle-compact .mini { margin-bottom: 0; }
+    .lifecycle-compact .mini,
+    .loop-compact .mini { margin-bottom: 0; }
     .agent-compact table + table { margin-top: 8px; }
     .fact {
       border-left: 3px solid #7da8d4;
@@ -300,7 +302,7 @@
     @media (max-width: 660px) {
       .sheet { width: min(100% - 20px, 1320px); margin-top: 10px; }
       .hero { padding: 22px 18px; }
-      .grid, .mini, .overview-compact, .agent-compact, .lifecycle-compact, .note, .mono-list { grid-template-columns: 1fr; }
+      .grid, .mini, .overview-compact, .agent-compact, .lifecycle-compact, .loop-compact, .note, .mono-list { grid-template-columns: 1fr; }
       h1 { font-size: 32px; }
       .footer { display: block; }
       .footer span { display: block; margin-top: 7px; }
@@ -551,27 +553,32 @@ END → Output</code></pre>
           <div class="icon gold">LOOP</div>
           <div>
             <h2>Custom Agent Loop (Async)</h2>
-            <div class="caption">Model node -> tools node -> route until no tool calls</div>
+            <div class="caption">Tự nối model node, tools node và routing thay vì dùng create_react_agent</div>
           </div>
         </div>
         <div class="body">
-          <pre class="language-python"><code class="language-python">from typing import Literal
-from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
+          <div class="loop-compact">
+            <div>
+              <div class="mini">
+                <div class="fact"><b>Nó dùng để làm gì?</b> Tự build agent loop khi cần kiểm soát rõ từng node và edge.</div>
+                <div class="fact"><b>Khác gì prebuilt?</b> <code>create_react_agent</code> giấu loop bên trong; custom loop cho bạn tự nối luồng.</div>
+                <div class="fact"><b>Khi nên dùng?</b> Cần approval, logging, retry, cache, route riêng hoặc thêm node trung gian.</div>
+                <div class="fact"><b>Luồng</b> Model node → nếu có tool call thì Tools node → quay lại Model node → nếu không thì <code>END</code>.</div>
+              </div>
+              <pre class="language-bash"><code class="language-bash">User message
+   ↓
+Model node
+   ↓
+Need tool?
+ ├─ yes → Tools node → Model node
+ └─ no  → END</code></pre>
+            </div>
+            <pre class="language-python"><code class="language-python">from typing import Literal
 from langgraph.graph import MessagesState, StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 
-@tool
-def lookup_order(order_id: str) -> str:
-    """Return order status."""
-    return "shipped"
-
-tools = [lookup_order]
-model = ChatOpenAI(model="gpt-4.1-mini", temperature=0).bind_tools(tools)
-
-# Async node function
 async def call_model(state: MessagesState):
-    response = await model.ainvoke(state["messages"])
+    response = await model_with_tools.ainvoke(state["messages"])
     return {"messages": [response]}
 
 def route_tools(state: MessagesState) -> Literal["tools", "__end__"]:
@@ -586,9 +593,10 @@ builder.add_conditional_edges("agent", route_tools)
 builder.add_edge("tools", "agent")
 
 graph = builder.compile()</code></pre>
+          </div>
           <div class="note">
-            <p><b>Why this matters:</b> this is the mental model behind tool-calling agents: call model, execute tools, append tool messages, call model again.</p>
-            <p class="bad"><b>Do not hide risk:</b> add <code>interrupt()</code> before side-effect tools such as payments, deletes, emails, or ticket creation.</p>
+            <p><b>Ghi nhớ:</b> nếu chỉ cần agent gọi tool cơ bản, dùng <code>create_react_agent</code> sẽ nhanh hơn.</p>
+            <p class="bad"><b>Side effects:</b> thêm <code>interrupt()</code> trước các tool như thanh toán, gửi email, xóa dữ liệu hoặc tạo ticket.</p>
           </div>
         </div>
       </article>
