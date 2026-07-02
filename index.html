@@ -234,6 +234,29 @@
       font-size: 11px;
     }
     .mono-list code { color: #1d4f8f; font-weight: 800; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 11px;
+    }
+    th, td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      color: var(--accent);
+      background: #f4f8fd;
+      font-size: 9px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    tr:last-child td { border-bottom: 0; }
+    td code { color: #1d4f8f; font-weight: 800; overflow-wrap: anywhere; }
     .footer {
       display: flex;
       justify-content: space-between;
@@ -285,6 +308,8 @@
       <nav class="chips" aria-label="Cheatsheet sections">
         <a class="chip" href="#overview">Overview</a>
         <a class="chip" href="#build-agent">Build Agent</a>
+        <a class="chip" href="#thinking">Thinking</a>
+        <a class="chip" href="#lifecycle">Lifecycle</a>
         <a class="chip" href="#stategraph">StateGraph</a>
         <a class="chip" href="#state">State &amp; Reducers</a>
         <a class="chip" href="#nodes">Nodes</a>
@@ -293,6 +318,9 @@
         <a class="chip" href="#persistence">Persistence</a>
         <a class="chip" href="#interrupts">Interrupts</a>
         <a class="chip" href="#streaming">Streaming</a>
+        <a class="chip" href="#testing">Testing</a>
+        <a class="chip" href="#compatibility">Compatibility</a>
+        <a class="chip" href="#agent-server">Agent Server</a>
         <a class="chip" href="#subgraphs">Subgraphs</a>
         <a class="chip" href="#prebuilt">Prebuilt Agents</a>
         <a class="chip" href="#schemas-private-state">Schemas</a>
@@ -305,71 +333,103 @@
     </header>
 
     <section class="grid" aria-label="LangGraph core components">
-      <article id="overview" class="card">
+      <article id="overview" class="card span-3">
         <div class="card-head">
           <div class="icon blue">LG</div>
           <div>
             <h2>LangGraph Overview</h2>
-            <div class="caption">Low-level orchestration for stateful agents</div>
+            <div class="caption">LangGraph là runtime để điều phối agent/workflow theo dạng state machine</div>
           </div>
         </div>
         <div class="body">
           <div class="mini">
-            <div class="fact"><b>Concept</b> Framework for building agents and workflows as graphs with state, control flow, and persistence.</div>
-            <div class="fact"><b>Use when</b> Multi-step agents, human-in-the-loop flows, long-running workflows, and multi-agent systems.</div>
-            <div class="fact"><b>Install</b> <code>pip install -U langgraph</code></div>
-            <div class="fact"><b>Core APIs</b> Graph API, Functional API, prebuilt agents, LangGraph Platform.</div>
+            <div class="fact"><b>Nó là gì</b> Framework/runtime để xây agent và workflow có trạng thái bằng graph: node xử lý việc, edge điều hướng, state lưu dữ liệu.</div>
+            <div class="fact"><b>Không phải</b> <code>LangGraph Overview</code> không phải hàm. Đây là mental model trước khi đi vào các namespace như <code>langgraph.graph</code>.</div>
+            <div class="fact"><b>Dùng khi</b> Workflow nhiều bước, vòng lặp gọi tool, chờ người duyệt, tác vụ chạy lâu, multi-agent, resume sau lỗi.</div>
+            <div class="fact"><b>Không cần khi</b> Chỉ gọi một LLM đơn giản: user input -> model -> answer, không state, không routing, không checkpoint.</div>
           </div>
-          <pre class="language-python"><code class="language-python">pip install -U langgraph langchain
-pip install -U langchain-openai
+          <table>
+            <thead>
+              <tr><th>Khái niệm</th><th>Nói dễ hiểu</th><th>API sẽ học sau overview</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>State</td><td>Dữ liệu chung của workflow/agent, được truyền qua các bước.</td><td><code>TypedDict</code>, <code>MessagesState</code>, reducers</td></tr>
+              <tr><td>Node</td><td>Một bước xử lý: gọi model, gọi tool, validate, retrieve, transform.</td><td><code>builder.add_node(name, fn)</code></td></tr>
+              <tr><td>Edge</td><td>Đường đi từ bước này sang bước khác.</td><td><code>add_edge</code>, <code>add_conditional_edges</code></td></tr>
+              <tr><td>Graph</td><td>Bản đồ workflow sau khi đã nối node/edge.</td><td><code>StateGraph(...).compile()</code></td></tr>
+              <tr><td>Checkpoint</td><td>Snapshot state để resume, interrupt, time travel.</td><td><code>InMemorySaver</code>, <code>PostgresSaver</code></td></tr>
+            </tbody>
+          </table>
+          <pre class="language-bash"><code class="language-bash"># Install package
+pip install -U langgraph langchain langchain-openai
 
-# Main idea:
-# StateGraph defines state.
-# Nodes update state.
-# Edges decide next node.
-# Checkpointers persist execution.</code></pre>
+# Mental model:
+# 1. Define State: workflow remembers what?
+# 2. Add Nodes: each node does one step and returns partial state.
+# 3. Add Edges: decide which node runs next.
+# 4. Compile Graph: turn the builder into a runnable object.
+# 5. Invoke Graph: pass input state, receive updated output state.</code></pre>
+          <pre class="language-python"><code class="language-python">from typing import TypedDict
+from langgraph.graph import StateGraph, START, END
+
+class State(TypedDict):
+    question: str
+    answer: str
+
+def answer_node(state: State) -> dict:
+    return {"answer": f"Answer for: {state['question']}"}
+
+builder = StateGraph(State)
+builder.add_node("answer", answer_node)
+builder.add_edge(START, "answer")
+builder.add_edge("answer", END)
+
+graph = builder.compile()
+result = graph.invoke({"question": "LangGraph dùng để làm gì?", "answer": ""})</code></pre>
           <div class="note">
-            <p><b>Best:</b> Use LangGraph when you need clearer state and control flow than a simple chain or agent.</p>
-            <p class="bad"><b>Mistake:</b> Build a custom graph when LangGraph's <code>create_react_agent</code> already fits.</p>
+            <p><b>Đọc phần này để hiểu:</b> LangGraph nhận <code>state</code>, chạy qua các <code>node</code>, dùng <code>edge</code> để điều hướng, rồi trả về state/output cuối.</p>
+            <p><b>Mục kế tiếp:</b> bắt đầu API catalog với <code>langgraph.graph</code>: <code>StateGraph</code>, <code>START</code>, <code>END</code>, <code>MessagesState</code>, <code>add_messages</code>.</p>
           </div>
         </div>
       </article>
 
-      <article id="build-agent" class="card span-2">
+      <article id="build-agent" class="card span-3">
         <div class="card-head">
           <div class="icon green">AG</div>
           <div>
             <h2>Build An Agent</h2>
-            <div class="caption">Prebuilt ReAct agent first, custom graph when control flow matters</div>
+            <div class="caption">LangGraph prebuilt agent: create_react_agent builds a compiled graph for model + tools</div>
           </div>
         </div>
         <div class="body">
-          <pre class="language-python"><code class="language-python">from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.memory import InMemorySaver
+          <div class="mini">
+            <div class="fact"><b>LangGraph API</b> <code>from langgraph.prebuilt import create_react_agent</code></div>
+            <div class="fact"><b>Returns</b> A compiled graph/runnable agent with <code>invoke</code>, <code>ainvoke</code>, <code>stream</code>, <code>astream</code>.</div>
+            <div class="fact"><b>Inputs</b> Usually <code>{"messages": [...]}</code> plus optional <code>config</code> containing <code>thread_id</code>.</div>
+            <div class="fact"><b>Provider deps</b> Models still come from providers such as OpenAI/Anthropic; LangGraph orchestrates them.</div>
+          </div>
+          <pre class="language-python"><code class="language-python">from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt import create_react_agent
 
-@tool
 def search_docs(query: str) -> str:
     """Use to search internal product documentation."""
     return "Relevant product documentation snippet."
 
-@tool
 def create_ticket(title: str, severity: str) -> str:
     """Use only after the user confirms ticket creation."""
     return f"ticket created: {title} / {severity}"
 
-model = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
 checkpointer = InMemorySaver()
 
+# This is the LangGraph build step.
 agent = create_react_agent(
-    model=model,
+    model="openai:gpt-4.1-mini",
     tools=[search_docs, create_ticket],
-    checkpointer=checkpointer,
     prompt=(
         "You are a support agent. Search docs before answering. "
         "Ask for confirmation before creating tickets."
     ),
+    checkpointer=checkpointer,
 )
 
 config = {"configurable": {"thread_id": "support-42"}}
@@ -379,9 +439,74 @@ async def run_agent():
         {"messages": [{"role": "user", "content": "How do I fix API timeout errors?"}]},
         config,
     )</code></pre>
+          <table>
+            <thead>
+              <tr><th>Parameter</th><th>Kiểu thường gặp</th><th>Dùng để làm gì</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>model</code></td><td>Model string hoặc chat model object</td><td>LLM chính của agent. Ví dụ <code>"openai:gpt-4.1-mini"</code>.</td></tr>
+              <tr><td><code>tools</code></td><td><code>list</code> Python functions / tool objects</td><td>Các hành động agent được phép gọi.</td></tr>
+              <tr><td><code>prompt</code></td><td><code>str</code> hoặc prompt/runnable</td><td>System instruction cho agent.</td></tr>
+              <tr><td><code>checkpointer</code></td><td>Checkpointer object</td><td>Lưu state theo <code>thread_id</code> để nhớ hội thoại, resume, interrupt.</td></tr>
+            </tbody>
+          </table>
           <div class="note">
-            <p><b>Start here:</b> <code>create_react_agent</code> already gives you model calls, tool execution, message state, streaming, and checkpointing.</p>
-            <p><b>Go custom when:</b> you need approval gates, deterministic routing, multi-agent teams, map-reduce, retries, or state editing.</p>
+            <p><b>Vì sao vẫn thấy LangChain ở nhiều ví dụ:</b> LangGraph dùng chung hệ sinh thái model/tool của LangChain, nhưng hàm build agent ở đây là <code>langgraph.prebuilt.create_react_agent</code>.</p>
+            <p><b>Khi nào tự build graph:</b> dùng <code>StateGraph</code> riêng khi cần approval gates, deterministic routing, multi-agent teams, map-reduce, retries, hoặc state editing.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="thinking" class="card span-2">
+        <div class="card-head">
+          <div class="icon gold">MAP</div>
+          <div>
+            <h2>Thinking In LangGraph</h2>
+            <div class="caption">Beginner-first path from business process to graph design</div>
+          </div>
+        </div>
+        <div class="body">
+          <table>
+            <thead>
+              <tr><th>Step</th><th>Question</th><th>LangGraph artifact</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>1. Map workflow</td><td>What discrete steps happen in the real process?</td><td>Each step becomes a node.</td></tr>
+              <tr><td>2. Classify steps</td><td>Is this LLM reasoning, data retrieval, external action, or user input?</td><td>Node body, retry policy, interrupt point.</td></tr>
+              <tr><td>3. Design state</td><td>What must persist across steps or resume after failure?</td><td>Typed state keys and reducers.</td></tr>
+              <tr><td>4. Wire control flow</td><td>Which path comes next, and who decides?</td><td>Edges, conditional edges, or <code>Command(goto=...)</code>.</td></tr>
+              <tr><td>5. Add production controls</td><td>Where can it fail, pause, stream, or need inspection?</td><td>Checkpointer, Store, interrupts, tracing, tests.</td></tr>
+            </tbody>
+          </table>
+          <div class="note">
+            <p><b>Rule:</b> Keep state as raw durable data; format prompts inside nodes when the model needs them.</p>
+            <p><b>Granularity:</b> split external APIs, LLM calls, and side effects into separate nodes when you need retries, visibility, or resume boundaries.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="lifecycle" class="card span-3">
+        <div class="card-head">
+          <div class="icon blue">RUN</div>
+          <div>
+            <h2>Execution Lifecycle</h2>
+            <div class="caption">What happens from invoke to resume, stream, and final output</div>
+          </div>
+        </div>
+        <div class="body">
+          <ul class="mono-list">
+            <li><code>Input enters</code><br><code>invoke</code>/<code>ainvoke</code> receives public input, optional config, and immutable runtime context.</li>
+            <li><code>START routes</code><br>The graph follows the entry edge into the first node or conditional router.</li>
+            <li><code>Node runs</code><br>A node reads current state/context, calls models/tools/data systems, then returns a partial update or <code>Command</code>.</li>
+            <li><code>Reducers merge</code><br>State updates overwrite by default; reducer-annotated keys append or aggregate deterministically.</li>
+            <li><code>Checkpoint saves</code><br>With a checkpointer, state is persisted by <code>thread_id</code> so failures and interrupts can resume.</li>
+            <li><code>Stream emits</code><br>Graph can emit values, updates, messages, debug events, custom events, or v3 lifecycle streams.</li>
+            <li><code>Router decides</code><br>Static edges, conditional edges, or <code>Command(goto=...)</code> select the next node.</li>
+            <li><code>END returns</code><br>The output schema filters final public response while internal state remains private.</li>
+          </ul>
+          <div class="note">
+            <p><b>Resume model:</b> after an interrupt or failure, execution resumes from the beginning of the node where it stopped.</p>
+            <p class="bad"><b>Design smell:</b> a giant node hides progress, makes retries expensive, and reduces observability in Studio/LangSmith.</p>
           </div>
         </div>
       </article>
@@ -998,29 +1123,131 @@ async def chat_stream_endpoint(payload: ChatRequest):
         </div>
       </article>
 
-      <article id="testing" class="card">
+      <article id="agent-server" class="card span-2">
+        <div class="card-head">
+          <div class="icon blue">SRV</div>
+          <div>
+            <h2>Agent Server &amp; Platform</h2>
+            <div class="caption">Deploy graph-backed agents with managed threads, runs, streaming, cron, and webhooks</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="mini">
+            <div class="fact"><b>Use when</b> You need hosted/standardized agent APIs instead of hand-rolled FastAPI endpoints.</div>
+            <div class="fact"><b>Concepts</b> Assistant, thread, run, store, deployment, stream.</div>
+            <div class="fact"><b>Config</b> <code>langgraph.json</code> maps graph IDs to Python callables.</div>
+            <div class="fact"><b>Local dev</b> LangGraph CLI can run a local server for Studio and SDK clients.</div>
+          </div>
+          <pre class="language-json"><code class="language-json">{
+  "dependencies": ["."],
+  "graphs": {
+    "support_agent": "./src/support_agent/graph.py:graph"
+  },
+  "env": ".env"
+}</code></pre>
+          <pre class="language-bash"><code class="language-bash">pip install -U "langgraph-cli[inmem]"
+langgraph dev --config langgraph.json</code></pre>
+          <div class="note">
+            <p><b>Best:</b> use Agent Server/Platform when you want durable runs, hosted streaming, thread APIs, background runs, scheduled jobs, and Studio debugging.</p>
+            <p class="bad"><b>Mistake:</b> expose raw graph internals as public API contracts; keep stable input/output schemas and version graph IDs deliberately.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="testing" class="card span-3">
         <div class="card-head">
           <div class="icon green">TST</div>
           <div>
             <h2>Testing Graphs</h2>
-            <div class="caption">Viết pytest unit test cho nodes và routers</div>
+            <div class="caption">Unit-test nodes, routers, reducers, compiled graph behavior, and resume paths</div>
           </div>
         </div>
         <div class="body">
+          <table>
+            <thead>
+              <tr><th>Test layer</th><th>What to assert</th><th>Why it matters</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Node unit test</td><td>Given state/context, node returns a partial state update with expected keys.</td><td>Fast and deterministic.</td></tr>
+              <tr><td>Router unit test</td><td>Route labels are valid node names or <code>END</code>.</td><td>Prevents runtime dead ends.</td></tr>
+              <tr><td>Reducer test</td><td>Parallel updates append/merge exactly as intended.</td><td>Avoids silent data loss.</td></tr>
+              <tr><td>Compiled graph test</td><td>End-to-end state/output for a representative input.</td><td>Catches wiring, schema, and edge mistakes.</td></tr>
+              <tr><td>Checkpoint test</td><td>Interrupt/resume and history inspection work with stable <code>thread_id</code>.</td><td>Protects long-running flows.</td></tr>
+            </tbody>
+          </table>
           <pre class="language-python"><code class="language-python">import pytest
-from langchain_core.messages import AIMessage
+from typing import Literal
+from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import END
+from langgraph.types import Command
 
 @pytest.mark.asyncio
 async def test_call_model_node_logic():
-    # Unit test độc lập cho node call_model
-    state = {"messages": [("user", "Hello")]}
+    state = {"messages": [HumanMessage(content="Hello")]}
     res = await call_model(state)
+    assert "messages" in res
     assert len(res["messages"]) == 1
 
-def test_route_tools_condition():
-    # Test router logic
-    state = {"messages": [AIMessage(content="test", tool_calls=[{"name": "lookup"}])]}
+def test_route_tools_condition() -> None:
+    state = {
+        "messages": [
+            AIMessage(
+                content="",
+                tool_calls=[{"id": "1", "name": "lookup_order", "args": {}}],
+            )
+        ]
+    }
     assert route_tools(state) == "tools"</code></pre>
+          <pre class="language-python"><code class="language-python">@pytest.mark.asyncio
+async def test_compiled_graph_reaches_final_answer():
+    graph = build_graph(model=fake_model, tools=[fake_lookup])
+    result = await graph.ainvoke(
+        {"messages": [HumanMessage(content="Where is order 42?")]},
+        config={"configurable": {"thread_id": "test-order-42"}},
+    )
+    assert result["messages"][-1].content
+
+@pytest.mark.asyncio
+async def test_interrupt_resume_path():
+    graph = build_payment_graph().compile(checkpointer=InMemorySaver())
+    config = {"configurable": {"thread_id": "test-pay-1"}}
+
+    first = await graph.ainvoke({"amount": 100, "approved": False}, config)
+    assert "__interrupt__" in first
+
+    resumed = await graph.ainvoke(Command(resume={"approved": True}), config)
+    assert resumed["approved"] is True</code></pre>
+          <div class="note">
+            <p><b>Best:</b> inject fake models/tools/stores into graph factory functions so tests do not call real LLMs or external APIs.</p>
+            <p class="bad"><b>Mistake:</b> only test final text from an LLM; assert graph state, route decisions, interrupts, and checkpoint behavior.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="compatibility" class="card span-3">
+        <div class="card-head">
+          <div class="icon red">BC</div>
+          <div>
+            <h2>Backward Compatibility &amp; Migration</h2>
+            <div class="caption">How to evolve graphs after real checkpoint threads already exist</div>
+          </div>
+        </div>
+        <div class="body">
+          <ul class="mono-list">
+            <li><code>State keys</code><br>Add optional/defaulted keys first. Avoid renaming or removing checkpointed keys without a migration path.</li>
+            <li><code>Reducers</code><br>Changing reducer semantics changes how future updates merge. Treat reducer changes like data migrations.</li>
+            <li><code>Node names</code><br>Checkpoint snapshots may reference pending node names. Keep aliases or drain old threads before renaming.</li>
+            <li><code>Interrupt order</code><br>Do not reorder multiple <code>interrupt()</code> calls inside a node with existing paused threads.</li>
+            <li><code>Thread ids</code><br>Keep <code>thread_id</code> stable by user/session/workflow. Random IDs disable resume and history.</li>
+            <li><code>Graph IDs</code><br>When deploying, version public graph IDs or assistants when input/output contracts change.</li>
+            <li><code>Saver migrations</code><br>Run checkpointer <code>setup()</code> or SQL migrations during deployment, not during every request.</li>
+            <li><code>Deprecations</code><br>Use <code>context_schema</code> for runtime context; avoid newly deprecated config-schema patterns in fresh code.</li>
+          </ul>
+          <div class="note">
+            <p><b>Deployment rule:</b> release state/schema changes with replay tests against saved fixture snapshots from previous versions.</p>
+            <p class="bad"><b>Risk:</b> changing graph topology casually can leave active threads paused at nodes that no longer exist.</p>
+          </div>
         </div>
       </article>
 
