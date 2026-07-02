@@ -159,7 +159,8 @@
     .overview-compact,
     .agent-compact,
     .lifecycle-compact,
-    .loop-compact {
+    .loop-compact,
+    .stategraph-compact {
       display: grid;
       grid-template-columns: 1.1fr 1.4fr;
       gap: 12px;
@@ -168,7 +169,8 @@
     .overview-compact .mini,
     .agent-compact .mini,
     .lifecycle-compact .mini,
-    .loop-compact .mini { margin-bottom: 0; }
+    .loop-compact .mini,
+    .stategraph-compact .mini { margin-bottom: 0; }
     .agent-compact table + table { margin-top: 8px; }
     .fact {
       border-left: 3px solid #7da8d4;
@@ -302,7 +304,7 @@
     @media (max-width: 660px) {
       .sheet { width: min(100% - 20px, 1320px); margin-top: 10px; }
       .hero { padding: 22px 18px; }
-      .grid, .mini, .overview-compact, .agent-compact, .lifecycle-compact, .loop-compact, .note, .mono-list { grid-template-columns: 1fr; }
+      .grid, .mini, .overview-compact, .agent-compact, .lifecycle-compact, .loop-compact, .stategraph-compact, .note, .mono-list { grid-template-columns: 1fr; }
       h1 { font-size: 32px; }
       .footer { display: block; }
       .footer span { display: block; margin-top: 7px; }
@@ -601,41 +603,61 @@ graph = builder.compile()</code></pre>
         </div>
       </article>
 
-      <article id="stategraph" class="card">
+      <article id="stategraph" class="card span-3">
         <div class="card-head">
           <div class="icon green">SG</div>
           <div>
             <h2>StateGraph</h2>
-            <div class="caption">Main graph builder for stateful workflows</div>
+            <div class="caption">Builder chính để khai báo workflow có state rồi compile thành graph chạy được</div>
           </div>
         </div>
         <div class="body">
-          <div class="mini">
-            <div class="fact"><b>Concept</b> Builder defines state schema, nodes, and edges, then compiles them into a runnable graph.</div>
-            <div class="fact"><b>Use when</b> Workflows with shared state and multiple coordinated steps.</div>
-            <div class="fact"><b>Import</b> <code>from langgraph.graph import StateGraph, START, END</code></div>
-            <div class="fact"><b>Methods</b> <code>add_node</code>, <code>add_edge</code>, <code>add_conditional_edges</code>, <code>compile</code></div>
-          </div>
-          <pre class="language-python"><code class="language-python">from typing import TypedDict
+          <div class="stategraph-compact">
+            <div>
+              <div class="mini">
+                <div class="fact"><b>StateGraph là gì?</b> Bản nháp/builder để khai báo state schema, node và edge.</div>
+                <div class="fact"><b>Chạy được chưa?</b> Chưa. Phải gọi <code>compile()</code> để tạo graph có thể <code>invoke()</code>.</div>
+                <div class="fact"><b>Dùng khi</b> Workflow cần state riêng, nhiều bước xử lý, routing hoặc checkpoint.</div>
+                <div class="fact"><b>Luồng build</b> Define state → add nodes → add edges → compile → invoke.</div>
+              </div>
+              <pre class="language-python"><code class="language-python">from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 
 class State(TypedDict):
-    topic: str
-    joke: str
+    question: str
+    answer: str
 
-def write_joke(state: State):
-    return {"joke": f"Short joke about {state['topic']}"}
+def answer_question(state: State):
+    return {"answer": f"Answer: {state['question']}"}
 
 builder = StateGraph(State)
-builder.add_node("write_joke", write_joke)
-builder.add_edge(START, "write_joke")
-builder.add_edge("write_joke", END)
+builder.add_node("answer", answer_question)
+builder.add_edge(START, "answer")
+builder.add_edge("answer", END)
 
 graph = builder.compile()
-result = graph.invoke({"topic": "graphs"})</code></pre>
+result = graph.invoke({
+    "question": "What is LangGraph?",
+    "answer": "",
+})</code></pre>
+            </div>
+            <table>
+              <thead>
+                <tr><th><code>langgraph.graph</code></th><th>Dùng để làm gì?</th><th>Cách dùng</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>StateGraph</code></td><td>Builder chính để tạo graph có state.</td><td><code>StateGraph(State)</code></td></tr>
+                <tr><td><code>MessagesState</code></td><td>State dựng sẵn cho chat/agent với key <code>messages</code>.</td><td><code>StateGraph(MessagesState)</code></td></tr>
+                <tr><td><code>MessageGraph</code></td><td>Graph chuyên cho message-only flow; thường ưu tiên <code>StateGraph(MessagesState)</code> trong code mới.</td><td><code>MessageGraph()</code></td></tr>
+                <tr><td><code>START</code></td><td>Điểm bắt đầu graph.</td><td><code>add_edge(START, "node")</code></td></tr>
+                <tr><td><code>END</code></td><td>Điểm kết thúc graph.</td><td><code>add_edge("node", END)</code></td></tr>
+                <tr><td><code>add_messages</code></td><td>Reducer để merge/append messages thay vì overwrite list.</td><td><code>Annotated[list, add_messages]</code></td></tr>
+              </tbody>
+            </table>
+          </div>
           <div class="note">
-            <p><b>Best:</b> Type state clearly with <code>TypedDict</code> or Pydantic; nodes should return partial state updates.</p>
-            <p class="bad"><b>Mistake:</b> Mutate state directly or forget to compile the graph before invoking it.</p>
+            <p><b>Ghi nhớ:</b> <code>StateGraph</code> là nơi thiết kế graph; <code>compile()</code> mới tạo graph chạy thật.</p>
+            <p><b>Chọn nhanh:</b> workflow custom dùng <code>TypedDict</code>; chat/agent thường dùng <code>MessagesState</code>.</p>
           </div>
         </div>
       </article>
