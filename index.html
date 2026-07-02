@@ -156,13 +156,16 @@
       gap: 8px;
       margin-bottom: 10px;
     }
-    .overview-compact {
+    .overview-compact,
+    .agent-compact {
       display: grid;
       grid-template-columns: 1.1fr 1.4fr;
       gap: 12px;
       align-items: start;
     }
-    .overview-compact .mini { margin-bottom: 0; }
+    .overview-compact .mini,
+    .agent-compact .mini { margin-bottom: 0; }
+    .agent-compact table + table { margin-top: 8px; }
     .fact {
       border-left: 3px solid #7da8d4;
       padding-left: 8px;
@@ -295,7 +298,7 @@
     @media (max-width: 660px) {
       .sheet { width: min(100% - 20px, 1320px); margin-top: 10px; }
       .hero { padding: 22px 18px; }
-      .grid, .mini, .overview-compact, .note, .mono-list { grid-template-columns: 1fr; }
+      .grid, .mini, .overview-compact, .agent-compact, .note, .mono-list { grid-template-columns: 1fr; }
       h1 { font-size: 32px; }
       .footer { display: block; }
       .footer span { display: block; margin-top: 7px; }
@@ -387,20 +390,15 @@
           </div>
         </div>
         <div class="body">
-          <div class="mini">
-            <div class="fact"><b>Agent là gì?</b> LLM + tools + vòng lặp quyết định: trả lời ngay hay gọi tool rồi suy nghĩ tiếp.</div>
-            <div class="fact"><b>LangGraph làm gì?</b> Tạo và điều phối graph chạy agent: model → tools → model → final answer.</div>
-            <div class="fact"><b>Vì sao có LangChain?</b> LangChain thường cung cấp model, tool schema, messages, retriever; LangGraph điều phối chúng.</div>
-            <div class="fact"><b>Dùng khi</b> Muốn tạo nhanh agent có tool-calling mà chưa cần tự nối <code>StateGraph</code>, node, edge.</div>
-          </div>
-          <pre class="language-bash"><code class="language-bash">User asks
-   ↓
-Model decides: answer or call tool?
-   ↓
-Tool returns result
-   ↓
-Model uses result to answer</code></pre>
-          <pre class="language-python"><code class="language-python">from langgraph.prebuilt import create_react_agent
+          <div class="agent-compact">
+            <div>
+              <div class="mini">
+                <div class="fact"><b>Agent là gì?</b> LLM + tools + vòng lặp: model quyết định trả lời ngay hay gọi tool rồi suy nghĩ tiếp.</div>
+                <div class="fact"><b>LangGraph làm gì?</b> Điều phối graph chạy agent: user → model → tools → model → final answer.</div>
+                <div class="fact"><b>Vì sao có LangChain?</b> LangChain thường cung cấp model/tool/messages; LangGraph điều phối workflow.</div>
+                <div class="fact"><b>Dùng khi</b> Muốn tạo nhanh agent có tool-calling mà chưa cần tự nối <code>StateGraph</code>.</div>
+              </div>
+              <pre class="language-python"><code class="language-python">from langgraph.prebuilt import create_react_agent
 
 def search_docs(query: str) -> str:
     return "Relevant documentation snippet."
@@ -408,41 +406,45 @@ def search_docs(query: str) -> str:
 agent = create_react_agent(
     model="openai:gpt-4.1-mini",
     tools=[search_docs],
-    prompt="Answer with help from the docs when needed.",
+    prompt="Answer with help from docs when needed.",
 )
 
-result = agent.invoke({
-    "messages": [{"role": "user", "content": "How do I fix timeout errors?"}]
-})</code></pre>
-          <table>
-            <thead>
-              <tr><th>Parameter</th><th>Dùng để làm gì</th></tr>
-            </thead>
-            <tbody>
-              <tr><td><code>model</code></td><td>LLM chính của agent. Có thể là model string hoặc chat model object.</td></tr>
-              <tr><td><code>tools</code></td><td>Các hành động agent được phép gọi, ví dụ search, database query, calculator.</td></tr>
-              <tr><td><code>prompt</code></td><td>Vai trò và quy tắc hành xử của agent.</td></tr>
-              <tr><td><code>checkpointer</code></td><td>Tùy chọn lưu hội thoại/state theo <code>thread_id</code> để nhớ và resume.</td></tr>
-            </tbody>
-          </table>
-          <table>
-            <thead>
-              <tr><th><code>langgraph.prebuilt</code></th><th>Khi dùng</th></tr>
-            </thead>
-            <tbody>
-              <tr><td><code>create_react_agent</code></td><td>Tạo nhanh agent hoàn chỉnh có vòng lặp model/tool.</td></tr>
-              <tr><td><code>ToolNode</code></td><td>Chạy tool calls khi tự build graph bằng <code>StateGraph</code>.</td></tr>
-              <tr><td><code>tools_condition</code></td><td>Route từ model sang tools nếu có tool calls, hoặc kết thúc nếu không có.</td></tr>
-              <tr><td><code>ValidationNode</code></td><td>Validate tool calls/schema trước khi thực thi tool.</td></tr>
-              <tr><td><code>InjectedState</code></td><td>Cho tool đọc graph state nội bộ mà model không cần truyền vào.</td></tr>
-              <tr><td><code>InjectedStore</code></td><td>Cho tool đọc store/long-term memory nội bộ.</td></tr>
-              <tr><td><code>ToolRuntime</code></td><td>Truy cập runtime đầy đủ trong tool: state, context, store, config, tool call id.</td></tr>
-              <tr><td><code>ToolCallTransformer</code></td><td>Tùy biến/chuẩn hóa tool calls nâng cao trước khi xử lý.</td></tr>
-            </tbody>
-          </table>
+result = agent.invoke({"messages": [
+    {"role": "user", "content": "How do I fix timeout errors?"}
+]})</code></pre>
+            </div>
+            <div>
+              <table>
+                <thead>
+                  <tr><th>Parameter</th><th>Ý nghĩa</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>model</code></td><td>LLM chính của agent.</td></tr>
+                  <tr><td><code>tools</code></td><td>Các hành động agent được phép gọi.</td></tr>
+                  <tr><td><code>prompt</code></td><td>Vai trò và quy tắc hành xử.</td></tr>
+                  <tr><td><code>checkpointer</code></td><td>Lưu state theo <code>thread_id</code> để nhớ/resume.</td></tr>
+                </tbody>
+              </table>
+              <table>
+                <thead>
+                  <tr><th><code>langgraph.prebuilt</code></th><th>Khi dùng</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>create_react_agent</code></td><td>Tạo nhanh agent model/tool.</td></tr>
+                  <tr><td><code>ToolNode</code></td><td>Chạy tool calls trong custom graph.</td></tr>
+                  <tr><td><code>tools_condition</code></td><td>Route sang tools hoặc kết thúc.</td></tr>
+                  <tr><td><code>ValidationNode</code></td><td>Validate tool calls/schema.</td></tr>
+                  <tr><td><code>InjectedState</code></td><td>Inject graph state vào tool.</td></tr>
+                  <tr><td><code>InjectedStore</code></td><td>Inject store/memory vào tool.</td></tr>
+                  <tr><td><code>ToolRuntime</code></td><td>Runtime đầy đủ cho tool.</td></tr>
+                  <tr><td><code>ToolCallTransformer</code></td><td>Tùy biến xử lý tool calls nâng cao.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
           <div class="note">
             <p><b>Ghi nhớ:</b> <code>create_react_agent</code> là API của LangGraph; model/tool truyền vào có thể đến từ LangChain hoặc provider integration khác.</p>
-            <p class="bad"><b>Side effects:</b> Với tool như gửi email, tạo ticket, thanh toán, xóa dữ liệu, không chỉ dựa vào prompt; hãy dùng interrupt/human approval.</p>
+            <p class="bad"><b>Side effects:</b> Tool như gửi email, tạo ticket, thanh toán, xóa dữ liệu cần interrupt/human approval.</p>
           </div>
         </div>
       </article>
