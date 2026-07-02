@@ -343,32 +343,37 @@
         </div>
         <div class="body">
           <div class="mini">
-            <div class="fact"><b>Nó là gì</b> Framework/runtime để xây agent và workflow có trạng thái bằng graph: node xử lý việc, edge điều hướng, state lưu dữ liệu.</div>
-            <div class="fact"><b>Không phải</b> <code>LangGraph Overview</code> không phải hàm. Đây là mental model trước khi đi vào các namespace như <code>langgraph.graph</code>.</div>
-            <div class="fact"><b>Dùng khi</b> Workflow nhiều bước, vòng lặp gọi tool, chờ người duyệt, tác vụ chạy lâu, multi-agent, resume sau lỗi.</div>
-            <div class="fact"><b>Không cần khi</b> Chỉ gọi một LLM đơn giản: user input -> model -> answer, không state, không routing, không checkpoint.</div>
+            <div class="fact"><b>LangGraph là gì?</b> Framework để xây AI agent hoặc AI workflow có nhiều bước xử lý.</div>
+            <div class="fact"><b>Dùng để làm gì?</b> Thiết kế luồng chạy cho ứng dụng AI: bước nào chạy trước, bước nào chạy sau, khi nào gọi tool, khi nào trả lời.</div>
+            <div class="fact"><b>Khi nào nên dùng?</b> Khi workflow cần nhiều bước, gọi tool, rẽ nhánh, lặp lại, lưu trạng thái, chờ người duyệt hoặc resume sau lỗi.</div>
+            <div class="fact"><b>Khi nào chưa cần?</b> Nếu chỉ là người dùng hỏi rồi gọi một LLM để trả lời ngay, dùng model SDK hoặc LangChain đơn giản là đủ.</div>
           </div>
+          <pre class="language-bash"><code class="language-bash">User input
+   ↓
+Node 1: hiểu yêu cầu
+   ↓
+Node 2: gọi tool / tìm dữ liệu
+   ↓
+Node 3: tạo câu trả lời
+   ↓
+Final output</code></pre>
           <table>
             <thead>
-              <tr><th>Khái niệm</th><th>Nói dễ hiểu</th><th>API sẽ học sau overview</th></tr>
+              <tr><th>Khái niệm</th><th>Hiểu đơn giản</th></tr>
             </thead>
             <tbody>
-              <tr><td>State</td><td>Dữ liệu chung của workflow/agent, được truyền qua các bước.</td><td><code>TypedDict</code>, <code>MessagesState</code>, reducers</td></tr>
-              <tr><td>Node</td><td>Một bước xử lý: gọi model, gọi tool, validate, retrieve, transform.</td><td><code>builder.add_node(name, fn)</code></td></tr>
-              <tr><td>Edge</td><td>Đường đi từ bước này sang bước khác.</td><td><code>add_edge</code>, <code>add_conditional_edges</code></td></tr>
-              <tr><td>Graph</td><td>Bản đồ workflow sau khi đã nối node/edge.</td><td><code>StateGraph(...).compile()</code></td></tr>
-              <tr><td>Checkpoint</td><td>Snapshot state để resume, interrupt, time travel.</td><td><code>InMemorySaver</code>, <code>PostgresSaver</code></td></tr>
+              <tr><td>State</td><td>Bộ nhớ tạm của workflow. Ví dụ: câu hỏi, lịch sử chat, kết quả search, câu trả lời.</td></tr>
+              <tr><td>Node</td><td>Một bước xử lý cụ thể. Ví dụ: gọi LLM, gọi tool, tìm tài liệu, kiểm tra điều kiện.</td></tr>
+              <tr><td>Edge</td><td>Đường nối giữa các node. Nó quyết định bước nào sẽ chạy tiếp theo.</td></tr>
+              <tr><td>Graph</td><td>Toàn bộ workflow gồm nhiều node và edge được nối lại với nhau.</td></tr>
+              <tr><td>Checkpoint</td><td>Bản lưu trạng thái, giúp agent nhớ, tạm dừng, chạy tiếp hoặc debug.</td></tr>
             </tbody>
           </table>
-          <pre class="language-bash"><code class="language-bash"># Install package
-pip install -U langgraph langchain langchain-openai
-
-# Mental model:
-# 1. Define State: workflow remembers what?
-# 2. Add Nodes: each node does one step and returns partial state.
-# 3. Add Edges: decide which node runs next.
-# 4. Compile Graph: turn the builder into a runnable object.
-# 5. Invoke Graph: pass input state, receive updated output state.</code></pre>
+          <pre class="language-bash"><code class="language-bash">State      = dữ liệu đang giữ
+Node       = việc cần làm
+Edge       = đi đâu tiếp
+Graph      = toàn bộ luồng xử lý
+Checkpoint = lưu lại để nhớ hoặc chạy tiếp</code></pre>
           <pre class="language-python"><code class="language-python">from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 
@@ -387,8 +392,8 @@ builder.add_edge("answer", END)
 graph = builder.compile()
 result = graph.invoke({"question": "LangGraph dùng để làm gì?", "answer": ""})</code></pre>
           <div class="note">
-            <p><b>Đọc phần này để hiểu:</b> LangGraph nhận <code>state</code>, chạy qua các <code>node</code>, dùng <code>edge</code> để điều hướng, rồi trả về state/output cuối.</p>
-            <p><b>Mục kế tiếp:</b> bắt đầu API catalog với <code>langgraph.graph</code>: <code>StateGraph</code>, <code>START</code>, <code>END</code>, <code>MessagesState</code>, <code>add_messages</code>.</p>
+            <p><b>Cốt lõi:</b> LangGraph nhận input, lưu dữ liệu trong <code>state</code>, chạy qua các <code>node</code>, dùng <code>edge</code> để điều hướng, rồi trả về output cuối.</p>
+            <p><b>Ghi nhớ:</b> LangGraph hữu ích nhất khi ứng dụng AI không còn là một lần gọi model đơn giản.</p>
           </div>
         </div>
       </article>
