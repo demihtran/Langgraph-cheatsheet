@@ -156,6 +156,13 @@
       gap: 8px;
       margin-bottom: 10px;
     }
+    .overview-compact {
+      display: grid;
+      grid-template-columns: 1.1fr 1.4fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .overview-compact .mini { margin-bottom: 0; }
     .fact {
       border-left: 3px solid #7da8d4;
       padding-left: 8px;
@@ -288,7 +295,7 @@
     @media (max-width: 660px) {
       .sheet { width: min(100% - 20px, 1320px); margin-top: 10px; }
       .hero { padding: 22px 18px; }
-      .grid, .mini, .note, .mono-list { grid-template-columns: 1fr; }
+      .grid, .mini, .overview-compact, .note, .mono-list { grid-template-columns: 1fr; }
       h1 { font-size: 32px; }
       .footer { display: block; }
       .footer span { display: block; margin-top: 7px; }
@@ -342,58 +349,31 @@
           </div>
         </div>
         <div class="body">
-          <div class="mini">
-            <div class="fact"><b>LangGraph là gì?</b> Framework để xây AI agent hoặc AI workflow có nhiều bước xử lý.</div>
-            <div class="fact"><b>Dùng để làm gì?</b> Thiết kế luồng chạy cho ứng dụng AI: bước nào chạy trước, bước nào chạy sau, khi nào gọi tool, khi nào trả lời.</div>
-            <div class="fact"><b>Khi nào nên dùng?</b> Khi workflow cần nhiều bước, gọi tool, rẽ nhánh, lặp lại, lưu trạng thái, chờ người duyệt hoặc resume sau lỗi.</div>
-            <div class="fact"><b>Khi nào chưa cần?</b> Nếu chỉ là người dùng hỏi rồi gọi một LLM để trả lời ngay, dùng model SDK hoặc LangChain đơn giản là đủ.</div>
+          <div class="overview-compact">
+            <div>
+              <div class="mini">
+                <div class="fact"><b>LangGraph là gì?</b> Framework để xây AI agent hoặc AI workflow có nhiều bước xử lý.</div>
+                <div class="fact"><b>Dùng để làm gì?</b> Điều phối luồng chạy: gọi LLM, gọi tool, rẽ nhánh, lặp lại, lưu trạng thái.</div>
+                <div class="fact"><b>Nên dùng khi</b> Ứng dụng AI cần nhiều bước, human approval, memory, resume hoặc multi-agent.</div>
+                <div class="fact"><b>Chưa cần khi</b> Chỉ là người dùng hỏi → gọi LLM → trả lời ngay.</div>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr><th>Khái niệm</th><th>Hiểu nhanh</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>State</td><td>Dữ liệu workflow đang giữ.</td></tr>
+                <tr><td>Node</td><td>Một bước xử lý.</td></tr>
+                <tr><td>Edge</td><td>Đường quyết định bước tiếp theo.</td></tr>
+                <tr><td>Graph</td><td>Toàn bộ luồng gồm node và edge.</td></tr>
+                <tr><td>Checkpoint</td><td>Bản lưu để nhớ, tạm dừng hoặc chạy tiếp.</td></tr>
+              </tbody>
+            </table>
           </div>
-          <pre class="language-bash"><code class="language-bash">User input
-   ↓
-Node 1: hiểu yêu cầu
-   ↓
-Node 2: gọi tool / tìm dữ liệu
-   ↓
-Node 3: tạo câu trả lời
-   ↓
-Final output</code></pre>
-          <table>
-            <thead>
-              <tr><th>Khái niệm</th><th>Hiểu đơn giản</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>State</td><td>Bộ nhớ tạm của workflow. Ví dụ: câu hỏi, lịch sử chat, kết quả search, câu trả lời.</td></tr>
-              <tr><td>Node</td><td>Một bước xử lý cụ thể. Ví dụ: gọi LLM, gọi tool, tìm tài liệu, kiểm tra điều kiện.</td></tr>
-              <tr><td>Edge</td><td>Đường nối giữa các node. Nó quyết định bước nào sẽ chạy tiếp theo.</td></tr>
-              <tr><td>Graph</td><td>Toàn bộ workflow gồm nhiều node và edge được nối lại với nhau.</td></tr>
-              <tr><td>Checkpoint</td><td>Bản lưu trạng thái, giúp agent nhớ, tạm dừng, chạy tiếp hoặc debug.</td></tr>
-            </tbody>
-          </table>
-          <pre class="language-bash"><code class="language-bash">State      = dữ liệu đang giữ
-Node       = việc cần làm
-Edge       = đi đâu tiếp
-Graph      = toàn bộ luồng xử lý
-Checkpoint = lưu lại để nhớ hoặc chạy tiếp</code></pre>
-          <pre class="language-python"><code class="language-python">from typing import TypedDict
-from langgraph.graph import StateGraph, START, END
-
-class State(TypedDict):
-    question: str
-    answer: str
-
-def answer_node(state: State) -> dict:
-    return {"answer": f"Answer for: {state['question']}"}
-
-builder = StateGraph(State)
-builder.add_node("answer", answer_node)
-builder.add_edge(START, "answer")
-builder.add_edge("answer", END)
-
-graph = builder.compile()
-result = graph.invoke({"question": "LangGraph dùng để làm gì?", "answer": ""})</code></pre>
           <div class="note">
-            <p><b>Cốt lõi:</b> LangGraph nhận input, lưu dữ liệu trong <code>state</code>, chạy qua các <code>node</code>, dùng <code>edge</code> để điều hướng, rồi trả về output cuối.</p>
-            <p><b>Ghi nhớ:</b> LangGraph hữu ích nhất khi ứng dụng AI không còn là một lần gọi model đơn giản.</p>
+            <p><b>Cốt lõi:</b> LangGraph biến ứng dụng AI thành một workflow có trạng thái thay vì một lần gọi model đơn giản.</p>
+            <p><b>Luồng cơ bản:</b> Input → State → Node → Edge → Output.</p>
           </div>
         </div>
       </article>
