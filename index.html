@@ -157,14 +157,16 @@
       margin-bottom: 10px;
     }
     .overview-compact,
-    .agent-compact {
+    .agent-compact,
+    .lifecycle-compact {
       display: grid;
       grid-template-columns: 1.1fr 1.4fr;
       gap: 12px;
       align-items: start;
     }
     .overview-compact .mini,
-    .agent-compact .mini { margin-bottom: 0; }
+    .agent-compact .mini,
+    .lifecycle-compact .mini { margin-bottom: 0; }
     .agent-compact table + table { margin-top: 8px; }
     .fact {
       border-left: 3px solid #7da8d4;
@@ -298,7 +300,7 @@
     @media (max-width: 660px) {
       .sheet { width: min(100% - 20px, 1320px); margin-top: 10px; }
       .hero { padding: 22px 18px; }
-      .grid, .mini, .overview-compact, .agent-compact, .note, .mono-list { grid-template-columns: 1fr; }
+      .grid, .mini, .overview-compact, .agent-compact, .lifecycle-compact, .note, .mono-list { grid-template-columns: 1fr; }
       h1 { font-size: 32px; }
       .footer { display: block; }
       .footer span { display: block; margin-top: 7px; }
@@ -504,23 +506,42 @@ result = agent.invoke({"messages": [
           <div class="icon blue">RUN</div>
           <div>
             <h2>Execution Lifecycle</h2>
-            <div class="caption">What happens from invoke to resume, stream, and final output</div>
+            <div class="caption">Điều gì xảy ra sau khi gọi graph.invoke hoặc graph.ainvoke</div>
           </div>
         </div>
         <div class="body">
-          <ul class="mono-list">
-            <li><code>Input enters</code><br><code>invoke</code>/<code>ainvoke</code> receives public input, optional config, and immutable runtime context.</li>
-            <li><code>START routes</code><br>The graph follows the entry edge into the first node or conditional router.</li>
-            <li><code>Node runs</code><br>A node reads current state/context, calls models/tools/data systems, then returns a partial update or <code>Command</code>.</li>
-            <li><code>Reducers merge</code><br>State updates overwrite by default; reducer-annotated keys append or aggregate deterministically.</li>
-            <li><code>Checkpoint saves</code><br>With a checkpointer, state is persisted by <code>thread_id</code> so failures and interrupts can resume.</li>
-            <li><code>Stream emits</code><br>Graph can emit values, updates, messages, debug events, custom events, or v3 lifecycle streams.</li>
-            <li><code>Router decides</code><br>Static edges, conditional edges, or <code>Command(goto=...)</code> select the next node.</li>
-            <li><code>END returns</code><br>The output schema filters final public response while internal state remains private.</li>
-          </ul>
+          <div class="lifecycle-compact">
+            <div>
+              <div class="mini">
+                <div class="fact"><b>Nó là gì?</b> Runtime flow: LangGraph chạy graph như thế nào sau khi nhận input.</div>
+                <div class="fact"><b>Tại sao cần?</b> Giúp hiểu node return dict xong state được merge, route tiếp và checkpoint ở đâu.</div>
+              </div>
+              <pre class="language-bash"><code class="language-bash">graph.invoke(input)
+   ↓
+START → Node → State update → Routing
+          ↑                    ↓
+          └──── next node ←────┘
+   ↓
+END → Output</code></pre>
+            </div>
+            <table>
+              <thead>
+                <tr><th>Bước</th><th>LangGraph làm gì?</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>Input</code></td><td>Nhận dữ liệu từ <code>invoke</code>/<code>ainvoke</code>, kèm <code>config</code> hoặc <code>context</code> nếu có.</td></tr>
+                <tr><td><code>START</code></td><td>Đi vào node đầu tiên theo edge đã khai báo.</td></tr>
+                <tr><td><code>Node</code></td><td>Chạy function/runnable và trả về phần state muốn cập nhật.</td></tr>
+                <tr><td><code>State update</code></td><td>Merge update vào state hiện tại; reducer quyết định append hay overwrite.</td></tr>
+                <tr><td><code>Routing</code></td><td>Dùng edge, conditional edge hoặc <code>Command</code> để chọn bước tiếp theo.</td></tr>
+                <tr><td><code>Checkpoint</code></td><td>Nếu có checkpointer, lưu state theo <code>thread_id</code> để resume/debug.</td></tr>
+                <tr><td><code>END</code></td><td>Dừng graph và trả output cuối.</td></tr>
+              </tbody>
+            </table>
+          </div>
           <div class="note">
-            <p><b>Resume model:</b> after an interrupt or failure, execution resumes from the beginning of the node where it stopped.</p>
-            <p class="bad"><b>Design smell:</b> a giant node hides progress, makes retries expensive, and reduces observability in Studio/LangSmith.</p>
+            <p><b>Ghi nhớ:</b> node không thay toàn bộ workflow; node chỉ trả phần state muốn cập nhật.</p>
+            <p class="bad"><b>Tránh:</b> gom quá nhiều việc vào một node vì khó retry, khó debug và khó stream tiến trình.</p>
           </div>
         </div>
       </article>
