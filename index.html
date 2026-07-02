@@ -157,14 +157,16 @@
       margin-bottom: 10px;
     }
     .overview-compact,
-    .agent-compact {
+    .agent-compact,
+    .thinking-compact {
       display: grid;
       grid-template-columns: 1.1fr 1.4fr;
       gap: 12px;
       align-items: start;
     }
     .overview-compact .mini,
-    .agent-compact .mini { margin-bottom: 0; }
+    .agent-compact .mini,
+    .thinking-compact .mini { margin-bottom: 0; }
     .agent-compact table + table { margin-top: 8px; }
     .fact {
       border-left: 3px solid #7da8d4;
@@ -298,7 +300,7 @@
     @media (max-width: 660px) {
       .sheet { width: min(100% - 20px, 1320px); margin-top: 10px; }
       .hero { padding: 22px 18px; }
-      .grid, .mini, .overview-compact, .agent-compact, .note, .mono-list { grid-template-columns: 1fr; }
+      .grid, .mini, .overview-compact, .agent-compact, .thinking-compact, .note, .mono-list { grid-template-columns: 1fr; }
       h1 { font-size: 32px; }
       .footer { display: block; }
       .footer span { display: block; margin-top: 7px; }
@@ -449,7 +451,7 @@ result = agent.invoke({"messages": [
         </div>
       </article>
 
-      <article id="thinking" class="card span-2">
+      <article id="thinking" class="card span-3">
         <div class="card-head">
           <div class="icon gold">MAP</div>
           <div>
@@ -458,27 +460,31 @@ result = agent.invoke({"messages": [
           </div>
         </div>
         <div class="body">
-          <table>
-            <thead>
-              <tr><th>Câu hỏi thiết kế</th><th>Biến thành gì trong LangGraph?</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>Workflow có những bước nào?</td><td>Mỗi bước thường là một <code>node</code>.</td></tr>
-              <tr><td>Dữ liệu nào cần giữ qua các bước?</td><td>Đưa vào <code>state</code>.</td></tr>
-              <tr><td>Sau mỗi bước đi đâu tiếp?</td><td>Dùng <code>edge</code> hoặc <code>conditional edge</code>.</td></tr>
-              <tr><td>Bước nào gọi LLM, tool, API hoặc retriever?</td><td>Viết logic đó bên trong node.</td></tr>
-              <tr><td>Có cần nhớ, tạm dừng hoặc chạy tiếp không?</td><td>Thêm <code>checkpointer</code> hoặc <code>interrupt</code>.</td></tr>
-            </tbody>
-          </table>
-          <pre class="language-bash"><code class="language-bash">Ví dụ: trả lời câu hỏi dựa trên tài liệu
+          <div class="thinking-compact">
+            <table>
+              <thead>
+                <tr><th>Câu hỏi thiết kế</th><th>Biến thành gì trong LangGraph?</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Workflow có những bước nào?</td><td>Mỗi bước thường là một <code>node</code>.</td></tr>
+                <tr><td>Dữ liệu nào cần giữ qua các bước?</td><td>Đưa vào <code>state</code>.</td></tr>
+                <tr><td>Sau mỗi bước đi đâu tiếp?</td><td>Dùng <code>edge</code> hoặc <code>conditional edge</code>.</td></tr>
+                <tr><td>Bước nào gọi LLM, tool, API hoặc retriever?</td><td>Viết logic đó bên trong node.</td></tr>
+                <tr><td>Có cần nhớ, tạm dừng hoặc chạy tiếp không?</td><td>Thêm <code>checkpointer</code> hoặc <code>interrupt</code>.</td></tr>
+              </tbody>
+            </table>
+            <div>
+              <pre class="language-bash"><code class="language-bash">Ví dụ: trả lời câu hỏi dựa trên tài liệu
 
 Nhận câu hỏi     → state["question"]
 Tìm tài liệu     → node retrieve
 Tạo câu trả lời  → node answer
 Trả kết quả      → END</code></pre>
-          <div class="note">
-            <p><b>Cách nghĩ:</b> đừng bắt đầu từ code; hãy bắt đầu bằng việc liệt kê workflow thật ngoài đời.</p>
-            <p><b>Ghi nhớ:</b> Workflow thật → <code>State</code> + <code>Nodes</code> + <code>Edges</code>.</p>
+              <div class="note">
+                <p><b>Cách nghĩ:</b> đừng bắt đầu từ code; hãy liệt kê workflow thật trước.</p>
+                <p><b>Ghi nhớ:</b> Workflow thật → <code>State</code> + <code>Nodes</code> + <code>Edges</code>.</p>
+              </div>
+            </div>
           </div>
         </div>
       </article>
